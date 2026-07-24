@@ -1,14 +1,6 @@
 import { PrEntry, ContainerConfig, RouteConfig, ScenarioDef, ShipmentGroup, ProcessedScenario, MoqAlert, ErrorFlag, ShippingQuote, RouteQuote, ExcessMcqOverride, WarehouseRentConfig, SurchargeRule, ImportedFclQuote, IncotermRule, LoadingDateRule } from "./types";
 import { getDefaultImportedFclQuotes } from "./defaultFclQuotes";
 
-// FCL container elasticity tolerance: if a shipment exceeds a container
-// combo's nominal capacity by no more than this many CBM (for the whole
-// shipment, not per-container), we still pick that smaller combo instead of
-// stepping up to the next larger one. E.g. a single 40HQ (65 CBM) shipment at
-// 67.2 CBM is only 2.2 CBM over — within tolerance — so it stays 1x 40HQ
-// rather than becoming 1x 40HQ + 1x 20ft.
-export const FCL_CBM_TOLERANCE = 3.0;
-
 export const getDaysDifference = (d1: Date, d2: Date) => {
   const d1Copy = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate());
   const d2Copy = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate());
@@ -909,56 +901,53 @@ export function calculateContainers(
   let capacity = 0;
   let configName = "";
 
-  // Map to container configurations using the flat FCL_CBM_TOLERANCE (3.0 CBM).
-  // A shipment that overflows a smaller combo's nominal capacity by no more
-  // than the tolerance still uses that smaller combo — it does NOT step up
-  // to the next larger combo just because it's technically over.
-  if (totalCbm <= 25 + FCL_CBM_TOLERANCE) {
-    // 1x 20ft (limit 25, fits up to 28.0 within tolerance)
+  // Map to container configurations using 2.1 CBM elasticity
+  if (totalCbm <= 27.1) {
+    // 1x 20ft (limit 25, fits up to 27.1 with elasticity)
     num20gp = 1;
     capacity = 25;
     configName = "1x 20ft FCL";
-  } else if (totalCbm <= 60 + FCL_CBM_TOLERANCE) {
-    // 1x 40ft (limit 60, fits up to 63.0 within tolerance)
+  } else if (totalCbm <= 62.1) {
+    // 1x 40ft (limit 60, fits up to 62.1 with elasticity)
     num40gp = 1;
     capacity = 60;
     configName = "1x 40ft FCL";
-  } else if (totalCbm <= 65 + FCL_CBM_TOLERANCE) {
-    // 1x 40HQ (limit 65, fits up to 68.0 within tolerance)
+  } else if (totalCbm <= 67.1) {
+    // 1x 40HQ (limit 65, fits up to 67.1 with elasticity)
     num40hq = 1;
     capacity = 65;
     configName = "1x 40HQ FCL";
-  } else if (totalCbm <= 90 + FCL_CBM_TOLERANCE) {
-    // 1x 40HQ + 1x 20ft (limit 90, fits up to 93.0 within tolerance)
+  } else if (totalCbm <= 94.2) {
+    // 1x 40HQ + 1x 20ft (limit 90, fits up to 94.2 with elasticity)
     num40hq = 1;
     num20gp = 1;
     capacity = 90;
     configName = "1x 40HQ + 1x 20ft FCL";
-  } else if (totalCbm <= 125 + FCL_CBM_TOLERANCE) {
-    // 1x 40HQ + 1x 40ft (limit 125, fits up to 128.0 within tolerance)
+  } else if (totalCbm <= 129.2) {
+    // 1x 40HQ + 1x 40ft (limit 125, fits up to 129.2 with elasticity)
     num40hq = 1;
     num40gp = 1;
     capacity = 125;
     configName = "1x 40HQ + 1x 40ft FCL";
-  } else if (totalCbm <= 130 + FCL_CBM_TOLERANCE) {
-    // 2x 40HQ (limit 130, fits up to 133.0 within tolerance)
+  } else if (totalCbm <= 134.2) {
+    // 2x 40HQ (limit 130, fits up to 134.2 with elasticity)
     num40hq = 2;
     capacity = 130;
     configName = "2x 40HQ FCL";
-  } else if (totalCbm <= 155 + FCL_CBM_TOLERANCE) {
-    // 2x 40HQ + 1x 20ft (limit 155, fits up to 158.0 within tolerance)
+  } else if (totalCbm <= 161.3) {
+    // 2x 40HQ + 1x 20ft (limit 155, fits up to 161.3 with elasticity)
     num40hq = 2;
     num20gp = 1;
     capacity = 155;
     configName = "2x 40HQ + 1x 20ft FCL";
-  } else if (totalCbm <= 190 + FCL_CBM_TOLERANCE) {
-    // 2x 40HQ + 1x 40ft (limit 190, fits up to 193.0 within tolerance)
+  } else if (totalCbm <= 196.3) {
+    // 2x 40HQ + 1x 40ft (limit 190, fits up to 196.3 with elasticity)
     num40hq = 2;
     num40gp = 1;
     capacity = 190;
     configName = "2x 40HQ + 1x 40ft FCL";
-  } else if (totalCbm <= 195 + FCL_CBM_TOLERANCE) {
-    // 3x 40HQ (limit 195, fits up to 198.0 within tolerance)
+  } else if (totalCbm <= 201.3) {
+    // 3x 40HQ (limit 195, fits up to 201.3 with elasticity)
     num40hq = 3;
     capacity = 195;
     configName = "3x 40HQ FCL";
@@ -969,7 +958,8 @@ export function calculateContainers(
     configName = `${num40hq}x 40HQ FCL`;
   }
 
-  const maxAllowedExcess = FCL_CBM_TOLERANCE;
+  const numContainers = num20gp + num40gp + num40hq || 1;
+  const maxAllowedExcess = numContainers * 2.1;
   const excessCbm = totalCbm - capacity > 0.005 ? totalCbm - capacity : 0;
   let status: "Acceptable" | "Review Needed" | "NOT Acceptable" = "Acceptable";
   let statusDetails = "";
@@ -2927,7 +2917,7 @@ export function processScenario(
           type: "warning",
           category: "Container",
           message: `Shipment Week ${s.week} is close to container limit.`,
-          details: `Over capacity by ${s.container.excessCbm?.toFixed(2)} CBM, within the ${FCL_CBM_TOLERANCE.toFixed(1)} CBM tolerance.`,
+          details: `Over capacity by ${s.container.excessCbm?.toFixed(2)} CBM, within the 2.1 CBM tolerance.`,
           flagKey,
           actionType: "accept_container_tolerance"
         });
@@ -3093,7 +3083,7 @@ export function processScenario(
     containerPoolMatchesBaseline = true;
     if (hasOverloadedShipment) {
       containerMatchingStatus = "Mismatch";
-      containerMatchingDetails = `Flagged: Contains overloaded container configuration exceeding elastic capacity limit (+${FCL_CBM_TOLERANCE.toFixed(1)} CBM tolerance).`;
+      containerMatchingDetails = "Flagged: Contains overloaded container configuration exceeding elastic capacity limit (+2.1 CBM per container).";
     } else {
       containerMatchingStatus = "Approved";
       containerMatchingDetails = matched
@@ -3223,7 +3213,8 @@ export function distributeContainerPool(
         excessCbm: Math.max(0, cbm - 19.0)
       };
     } else {
-      const maxAllowedExcess = FCL_CBM_TOLERANCE;
+      const numContainers = num20gp + num40gp + num40hq || 1;
+      const maxAllowedExcess = numContainers * 2.1;
       const excessCbm = cbm - capacity > 0.005 ? cbm - capacity : 0;
       let status: "Acceptable" | "Review Needed" | "NOT Acceptable" = "Acceptable";
       let statusDetails = "";
@@ -3607,7 +3598,8 @@ export function findValidCombinationsForSingleRoute(
   const isValidCombo = (h: number, f: number, t: number, l: number): boolean => {
     const numContainers = h + f + t;
     const baseCapacity = h * 65 + f * 60 + t * 25;
-    const fclCapacity = baseCapacity + FCL_CBM_TOLERANCE;
+    const elasticity = numContainers * 2.1;
+    const fclCapacity = baseCapacity + elasticity;
     
     if (l === 0) {
       return numContainers > 0 && fclCapacity >= V;

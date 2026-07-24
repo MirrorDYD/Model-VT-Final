@@ -392,48 +392,7 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
 
   const applyMapping = (rows: any[], currentMap: Record<string, string>, extraFieldsOverride?: Record<string, any>[]) => {
     try {
-      // Detect whether a date column is Day/Month/Year or Month/Day/Year by
-      // scanning ALL rows for at least one unambiguous value — i.e. a value
-      // whose first number is > 12, which can only be a day, never a month
-      // (e.g. "30/9/2026" can only mean 30 Sep, never month 30).
-      // If such a value is found anywhere in the column, the WHOLE column
-      // (including ambiguous rows like "4/10/2026") is treated as
-      // Day/Month/Year for consistency, since a single source file never
-      // mixes date orders within the same column. Falls back to
-      // Month/Day/Year only when no unambiguous evidence exists.
-      const detectDayFirstColumn = (colKey: string | undefined): boolean => {
-        if (!colKey) return false;
-        const pattern = /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/;
-        for (const row of rows) {
-          const str = String(row?.[colKey] ?? "").trim();
-          const m = str.match(pattern);
-          if (m) {
-            const g1 = parseInt(m[1], 10);
-            if (g1 > 12) return true;
-          }
-        }
-        return false;
-      };
-
-      const normalizeKeyLookup = (s: string) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const firstRowKeys = rows[0] ? Object.keys(rows[0]) : [];
-
-      const actualDeliveryKey = currentMap.actualDelivery
-        || firstRowKeys.find(k => /prdelivery|prdeliverydate|actualdelivery|deliverydate|vendorloading|vendorloadingdate/.test(normalizeKeyLookup(k)));
-
-      const dueDateRawKey = currentMap.dueDateRaw
-        || firstRowKeys.find(k => {
-          const nk = normalizeKeyLookup(k);
-          return nk === "duedate" || nk.includes("requiredduedate");
-        });
-
-      // Per-column day-first detection — computed once for the whole
-      // dataset rather than per-row, so formatting stays consistent.
-      const prDueDateIsDayFirst = detectDayFirstColumn(currentMap.prDueDate);
-      const actualDeliveryIsDayFirst = detectDayFirstColumn(actualDeliveryKey);
-      const dueDateRawIsDayFirst = detectDayFirstColumn(dueDateRawKey);
-
-      const parseDateValue = (rawDate: any, dayFirst: boolean = false): Date | undefined => {
+      const parseDateValue = (rawDate: any): Date | undefined => {
         if (rawDate === null || rawDate === undefined || String(rawDate).trim() === "") {
           return undefined;
         }
@@ -485,22 +444,14 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
               let year = parseInt(dmyOrMdyMatch[3], 10);
               year = normalizeYear(year);
 
-              // Default to Month/Day/Year unless this column was detected
-              // as Day/Month/Year (dayFirst) from unambiguous values
-              // elsewhere in the same column.
-              let month = dayFirst ? g2 - 1 : g1 - 1;
-              let day = dayFirst ? g1 : g2;
+              // Default to Month/Day/Year as requested by the user
+              let month = g1 - 1;
+              let day = g2;
 
-              // Unambiguous overrides: a value > 12 can only be a day, so it
-              // always wins over both the default and the detected column
-              // format — this protects against a single wrongly-detected
-              // or mixed-format column.
-              if (g1 > 12 && g2 <= 12) {
+              // Fallback if the first group is > 12, which must mean Day/Month/Year
+              if (g1 > 12) {
                 month = g2 - 1;
                 day = g1;
-              } else if (g2 > 12 && g1 <= 12) {
-                month = g1 - 1;
-                day = g2;
               }
 
               parsed = new Date(year, month, day);
@@ -547,13 +498,21 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
         }
 
         // Parse Dates safely
-        const parsedPrDueDate = parseDateValue(row[currentMap.prDueDate], prDueDateIsDayFirst);
+        const parsedPrDueDate = parseDateValue(row[currentMap.prDueDate]);
         const prDueDate = parsedPrDueDate || new Date(2026, 8, 29);
 
         // Robustly find actual delivery / PR Delivery Date from mapped header or common fallbacks
         let actualDelivery: Date | undefined;
-        if (actualDeliveryKey && row[actualDeliveryKey]) {
-          actualDelivery = parseDateValue(row[actualDeliveryKey], actualDeliveryIsDayFirst);
+        if (currentMap.actualDelivery && row[currentMap.actualDelivery]) {
+          actualDelivery = parseDateValue(row[currentMap.actualDelivery]);
+        } else {
+          // Look for common header name variants in the row keys
+          const normalizeKey = (s: string) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+          const candidateKey = Object.keys(row).find(k => {
+            const nk = normalizeKey(k);
+            return /prdelivery|prdeliverydate|actualdelivery|deliverydate|vendorloading|vendorloadingdate/.test(nk);
+          });
+          if (candidateKey) actualDelivery = parseDateValue(row[candidateKey]);
         }
 
         // Parse the raw "Due Date" source column separately — this is the
@@ -561,8 +520,15 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
         // prDueDate above which is mapped from "PR Delivery Date" for
         // grouping/Days Early calculations. Never conflate the two.
         let dueDateRaw: Date | undefined;
-        if (dueDateRawKey && row[dueDateRawKey]) {
-          dueDateRaw = parseDateValue(row[dueDateRawKey], dueDateRawIsDayFirst);
+        if (currentMap.dueDateRaw && row[currentMap.dueDateRaw]) {
+          dueDateRaw = parseDateValue(row[currentMap.dueDateRaw]);
+        } else {
+          const normalizeKey = (s: string) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+          const candidateDueKey = Object.keys(row).find(k => {
+            const nk = normalizeKey(k);
+            return (nk === "duedate" || nk.includes("requiredduedate"));
+          });
+          if (candidateDueKey) dueDateRaw = parseDateValue(row[candidateDueKey]);
         }
 
         // Parse CBM safely
