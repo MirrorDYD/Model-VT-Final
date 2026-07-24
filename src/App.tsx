@@ -13,8 +13,6 @@ import { getDefaultLoadingDateRules } from "./defaultLoadingDates";
 import { loadSamplePrEntries } from "./data";
 import { Info, HelpCircle, FileSpreadsheet, Layers, BarChart, CheckCircle2, Sliders, BarChart3, Ship } from "lucide-react";
 import { Language, t } from "./utils/translate";
-import { useCloudSyncedState, CloudSyncStatus } from "./utils/useCloudSyncedState";
-import { isCloudSyncEnabled } from "./utils/cloudSync";
 
 export default function App() {
   const [lang, setLang] = useState<Language>("EN");
@@ -41,17 +39,43 @@ export default function App() {
   const [prefer20ftForOctober, setPrefer20ftForOctober] = useState<boolean>(false); // Default to false (use LCL)
 
   // New parameters requested by user
-  const [customQuotes, setCustomQuotes, customQuotesSyncStatus] = useCloudSyncedState<RouteQuote[]>(
-    "procurement_custom_quotes_v4",
-    "customQuotes",
-    () => Object.values(getDefaultRouteQuotes())
-  );
+  const [customQuotes, setCustomQuotes] = useState<RouteQuote[]>(() => {
+    const saved = localStorage.getItem("procurement_custom_quotes_v4");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error("Error parsing saved custom quotes", e);
+      }
+    }
+    return Object.values(getDefaultRouteQuotes());
+  });
 
-  const [importedFclQuotes, setImportedFclQuotes, importedFclQuotesSyncStatus] = useCloudSyncedState<ImportedFclQuote[]>(
-    "procurement_imported_fcl_quotes_v4",
-    "importedFclQuotes",
-    () => getDefaultImportedFclQuotes()
-  );
+  useEffect(() => {
+    localStorage.setItem("procurement_custom_quotes_v4", JSON.stringify(customQuotes));
+  }, [customQuotes]);
+
+  const [importedFclQuotes, setImportedFclQuotes] = useState<ImportedFclQuote[]>(() => {
+    const saved = localStorage.getItem("procurement_imported_fcl_quotes_v4");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error("Error parsing saved imported FCL quotes", e);
+      }
+    }
+    return getDefaultImportedFclQuotes();
+  });
+
+  useEffect(() => {
+    localStorage.setItem("procurement_imported_fcl_quotes_v4", JSON.stringify(importedFclQuotes));
+  }, [importedFclQuotes]);
 
   useEffect(() => {
     localStorage.setItem("procurement_previous_existing_containers_v1", JSON.stringify(previouslyExistingContainers));
@@ -130,30 +154,40 @@ export default function App() {
   const [prExtractedCurrencies, setPrExtractedCurrencies] = useState<Record<string, boolean>>({});
   const [mcqSurchargeUSD, setMcqSurchargeUSD] = useState<number>(150);
   const [mcqSurchargeType, setMcqSurchargeType] = useState<"flat" | "unitPriceIncrease">("flat");
-  const [vendorSurcharges, setVendorSurcharges, vendorSurchargesSyncStatus] = useCloudSyncedState<Record<string, number>>(
-    "procurement_vendor_surcharges_v4",
-    "vendorSurcharges",
-    () => ({
+  const [vendorSurcharges, setVendorSurcharges] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem("procurement_vendor_surcharges_v4");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing saved vendor surcharges", e);
+      }
+    }
+    return {
       "Sourcing Fallback": 150,
       "KINGWHALE CORPORATION": 150
-    })
-  );
+    };
+  });
 
-  const [surchargeRules, setSurchargeRules, surchargeRulesSyncStatus] = useCloudSyncedState<SurchargeRule[]>(
-    "procurement_surcharge_rules_v1",
-    "surchargeRules",
-    () => []
-  );
+  useEffect(() => {
+    localStorage.setItem("procurement_vendor_surcharges_v4", JSON.stringify(vendorSurcharges));
+  }, [vendorSurcharges]);
 
-  // Combined status for the Quotes/Surcharges cloud-sync indicator shown in
-  // Advanced Procurement Settings.
-  const quotesSurchargesSyncStatus: CloudSyncStatus = !isCloudSyncEnabled()
-    ? "cloud-off"
-    : [customQuotesSyncStatus, importedFclQuotesSyncStatus, vendorSurchargesSyncStatus, surchargeRulesSyncStatus].includes("error")
-      ? "error"
-      : [customQuotesSyncStatus, importedFclQuotesSyncStatus, vendorSurchargesSyncStatus, surchargeRulesSyncStatus].every((s) => s === "synced")
-        ? "synced"
-        : "connecting";
+  const [surchargeRules, setSurchargeRules] = useState<SurchargeRule[]>(() => {
+    const saved = localStorage.getItem("procurement_surcharge_rules_v1");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing saved surcharge rules", e);
+      }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem("procurement_surcharge_rules_v1", JSON.stringify(surchargeRules));
+  }, [surchargeRules]);
 
   const [incotermRules, setIncotermRules] = useState<IncotermRule[]>(() => {
     const saved = localStorage.getItem("procurement_incoterm_rules_v1");
@@ -767,7 +801,6 @@ export default function App() {
                       enablePullForward={enablePullForward}
                       setEnablePullForward={setEnablePullForward}
                       lang={lang}
-                      cloudSyncStatus={quotesSurchargesSyncStatus}
                     />
                   </div>
                 )}
