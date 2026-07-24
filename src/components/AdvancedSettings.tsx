@@ -115,6 +115,7 @@ interface AdvancedSettingsProps {
   enablePullForward: boolean;
   setEnablePullForward: (val: boolean) => void;
   lang: Language;
+  cloudSyncStatus?: "cloud-off" | "connecting" | "synced" | "error";
 }
 
 export default function AdvancedSettings({
@@ -152,7 +153,8 @@ export default function AdvancedSettings({
   setOpportunityRate,
   enablePullForward,
   setEnablePullForward,
-  lang
+  lang,
+  cloudSyncStatus
 }: AdvancedSettingsProps) {
   const [activeTab, setActiveTab] = useState<"quotes" | "warehouse" | "surcharges" | "incoterms" | "rates" | "pullforward">("quotes");
 
@@ -866,6 +868,34 @@ export default function AdvancedSettings({
         <div className="flex items-center gap-2">
           <Settings size={16} className="text-blue-600 animate-spin-slow" />
           <h3 className="text-sm font-bold text-slate-800">{t("Advanced Procurement Settings", lang)}</h3>
+          {(activeTab === "quotes" || activeTab === "surcharges") && cloudSyncStatus && (
+            <span
+              title={
+                cloudSyncStatus === "synced"
+                  ? "Quotes & surcharges are saved to the cloud and will follow you to any device."
+                  : cloudSyncStatus === "connecting"
+                  ? "Connecting to cloud storage…"
+                  : cloudSyncStatus === "error"
+                  ? "Could not reach cloud storage — changes are only saved on this device for now."
+                  : "Cloud sync isn't configured — data is only saved on this device/browser."
+              }
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap ${
+                cloudSyncStatus === "synced"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : cloudSyncStatus === "connecting"
+                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                  : "bg-slate-100 text-slate-500 border border-slate-200"
+              }`}
+            >
+              {cloudSyncStatus === "synced"
+                ? `☁ ${t("Synced", lang)}`
+                : cloudSyncStatus === "connecting"
+                ? `☁ ${t("Syncing…", lang)}`
+                : cloudSyncStatus === "error"
+                ? `⚠ ${t("Sync error", lang)}`
+                : `💻 ${t("This device only", lang)}`}
+            </span>
+          )}
         </div>
         <div className="flex bg-slate-200/60 p-0.5 rounded-lg text-xs overflow-x-auto">
           <button
