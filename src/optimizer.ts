@@ -3010,6 +3010,83 @@ export function processScenario(
   // Generate Error and Warning Flags
   const errorFlags: ErrorFlag[] = [];
 
+  // Check for missing shipping quotes, incoterms, or surcharges
+  const uniqueShipFroms = Array.from(new Set(processedEntries.map(pr => getImportedShipFrom(pr.id, pr.shipFrom))));
+  uniqueShipFroms.forEach(shipFromStr => {
+    const hasQuote = (importedFclQuotes || []).some(
+      q => (q.shipFrom || "").toUpperCase().trim() === shipFromStr.toUpperCase().trim()
+    );
+    if (!hasQuote && shipFromStr) {
+      errorFlags.push({
+        type: "warning",
+        category: "MissingInfo",
+        message: `Missing Shipping Quote for Ship From "${shipFromStr}"`,
+        details: `The uploaded PR contains ship from location "${shipFromStr}" which does not have any active shipping quotes in settings. Port local and freight charges will default to 0.`,
+        messageKey: "flag.missingQuote.message",
+        messageParams: { shipFrom: shipFromStr },
+        detailsKey: "flag.missingQuote.details",
+        detailsParams: { shipFrom: shipFromStr },
+        shipFrom: shipFromStr
+      });
+    }
+  });
+
+  const uniqueIncotermKeys = new Set<string>();
+  processedEntries.forEach(pr => {
+    const shipFromStr = getImportedShipFrom(pr.id, pr.shipFrom);
+    const vendorCode = (pr.vendor || "").toUpperCase().trim();
+    const shipFromKey = shipFromStr.toUpperCase().trim();
+    if (!vendorCode || !shipFromKey) return;
+    const key = `${vendorCode}||${shipFromKey}`;
+    if (uniqueIncotermKeys.has(key)) return;
+    uniqueIncotermKeys.add(key);
+
+    const hasRule = (incotermRules || []).some(
+      r => r.vendorCode.toUpperCase().trim() === vendorCode &&
+           r.shipFrom.toUpperCase().trim() === shipFromKey
+    );
+    if (!hasRule) {
+      errorFlags.push({
+        type: "warning",
+        category: "MissingInfo",
+        message: `Missing Incoterm Rule for Vendor "${pr.vendor}" and Ship From "${shipFromStr}"`,
+        details: `There is no active Incoterm rule configured for vendor "${pr.vendor}" and ship from "${shipFromStr}". Sourcing default of FOB is assumed.`,
+        messageKey: "flag.missingIncoterm.message",
+        messageParams: { vendor: pr.vendor, shipFrom: shipFromStr },
+        detailsKey: "flag.missingIncoterm.details",
+        detailsParams: { vendor: pr.vendor, shipFrom: shipFromStr },
+        vendorCode: pr.vendor,
+        shipFrom: shipFromStr
+      });
+    }
+  });
+
+  const uniqueVendors = Array.from(new Set(processedEntries.map(pr => (pr.vendor || "").toUpperCase().trim()).filter(Boolean)));
+  uniqueVendors.forEach(vendorCode => {
+    const hasRules = (surchargeRules || []).some(
+      r => (r.vendorCode || "").toUpperCase().trim() === vendorCode
+    );
+    const flagKey = `no_surcharge_vendor_${vendorCode}`;
+    if (!hasRules && !acceptedFlags?.[flagKey]) {
+      const samplePr = processedEntries.find(pr => (pr.vendor || "").toUpperCase().trim() === vendorCode);
+      const originalVendorName = samplePr?.vendor || vendorCode;
+
+      errorFlags.push({
+        type: "warning",
+        category: "MissingInfo",
+        message: `Missing MCQ/MOQ Surcharge Config for Vendor "${originalVendorName}"`,
+        details: `No MCQ or MOQ surcharge rule has been configured for vendor "${originalVendorName}". If this vendor has no minimum volume constraints, you may dismiss this warning.`,
+        messageKey: "flag.missingSurcharge.message",
+        messageParams: { vendor: originalVendorName },
+        detailsKey: "flag.missingSurcharge.details",
+        detailsParams: { vendor: originalVendorName },
+        vendorCode: originalVendorName,
+        flagKey,
+        actionType: "no_surcharge"
+      });
+    }
+  });
+
   // Flag any item/color still at $0 unit price after overrides — likely a
   // data entry error in the uploaded PR file, since a real $0 cost would
   // make landed cost, carrying cost, and opportunity cost calculations
@@ -3278,7 +3355,7 @@ export function processScenario(
     containerMatchingStatus = hasOverloadedShipment ? "Mismatch" : "Approved";
   }
 
-  if (!isScenario1 && hasOverloadedShipment) {
+  if (hasOverloadedShipment) {
     errorFlags.push({
       type: "warning",
       category: "Container",

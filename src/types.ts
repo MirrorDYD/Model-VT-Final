@@ -167,7 +167,7 @@ export interface McqMoqConflictInfo {
 
 export interface ErrorFlag {
   type: "error" | "warning" | "info";
-  category: "MOQ" | "MCQ" | "Container" | "Delay" | "Warehouse" | "General" | "Price";
+  category: "MOQ" | "MCQ" | "Container" | "Delay" | "Warehouse" | "General" | "Price" | "MissingInfo";
   message: string;
   details?: string;
   // Optional structured i18n keys + params so the UI can render a fully
@@ -186,7 +186,9 @@ export interface ErrorFlag {
   week?: number;
   conflictInfo?: McqMoqConflictInfo;
   flagKey?: string;
-  actionType?: "accept_container_tolerance" | "pay_mcq_surcharge";
+  actionType?: "accept_container_tolerance" | "pay_mcq_surcharge" | "no_surcharge";
+  vendorCode?: string;
+  shipFrom?: string;
 }
 
 

@@ -1688,7 +1688,7 @@ export default function AdvancedSettings({
                               value={rule.vendorCode}
                               placeholder="Any"
                               onChange={e => {
-                                setIncotermRules(prev => prev.map(r => r.id === rule.id ? { ...r, vendorCode: e.target.value } : r));
+                                setIncotermRules(prev => prev.map(r => r.id === rule.id ? { ...r, vendorCode: e.target.value, source: "manual" } : r));
                               }}
                               className="w-full bg-transparent border-0 hover:bg-slate-100/80 focus:bg-white focus:ring-1 focus:ring-blue-500 px-2 py-1 rounded text-slate-700"
                             />
@@ -1698,7 +1698,7 @@ export default function AdvancedSettings({
                               type="text"
                               value={rule.shipFrom}
                               onChange={e => {
-                                setIncotermRules(prev => prev.map(r => r.id === rule.id ? { ...r, shipFrom: e.target.value } : r));
+                                setIncotermRules(prev => prev.map(r => r.id === rule.id ? { ...r, shipFrom: e.target.value, source: "manual" } : r));
                               }}
                               className="w-full bg-transparent border-0 hover:bg-slate-100/80 focus:bg-white focus:ring-1 focus:ring-blue-500 px-2 py-1 rounded text-slate-700"
                             />
@@ -1707,7 +1707,7 @@ export default function AdvancedSettings({
                             <select
                               value={rule.incoterm}
                               onChange={e => {
-                                setIncotermRules(prev => prev.map(r => r.id === rule.id ? { ...r, incoterm: e.target.value } : r));
+                                setIncotermRules(prev => prev.map(r => r.id === rule.id ? { ...r, incoterm: e.target.value, source: "manual" } : r));
                               }}
                               className="w-full bg-transparent border-0 hover:bg-slate-100/80 focus:bg-white focus:ring-1 focus:ring-blue-500 px-1 py-1 rounded text-slate-700 font-bold"
                             >

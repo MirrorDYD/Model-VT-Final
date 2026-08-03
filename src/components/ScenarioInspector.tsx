@@ -10,6 +10,7 @@ interface ScenarioInspectorProps {
   scenarios: ProcessedScenario[];
   exchangeRates: Record<string, number>;
   lang: Language;
+  currency: "THB" | "USD";
   onMovePrLine?: (prId: string, targetWeek: number) => void;
   onResetOverrides?: () => void;
   hasManualOverrides?: boolean;
@@ -125,6 +126,7 @@ export default function ScenarioInspector({
   scenarios, 
   exchangeRates, 
   lang,
+  currency,
   onMovePrLine,
   onResetOverrides,
   hasManualOverrides,
@@ -143,10 +145,25 @@ export default function ScenarioInspector({
   onSelectMcqMoqPreference,
   onAcceptFlag
 }: ScenarioInspectorProps) {
+  const rate = currency === "USD" ? (exchangeRates.USD || 33.5581) : 1;
+  const formatMoney = (val: number) => {
+    if (currency === "USD") {
+      const usdVal = val / rate;
+      return `$${usdVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+      return `${Math.round(val).toLocaleString()} THB`;
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<"colorSummary" | "colors" | "shipmentDates" | "excess" | "shipments" | "ledger" | "requisitions">("colorSummary");
   const [draggedOverWeek, setDraggedOverWeek] = useState<number | null>(null);
   const [showConsolidated, setShowConsolidated] = useState(false);
   const [priceFixDrafts, setPriceFixDrafts] = useState<Record<string, string>>({});
+  const [selectedPriceFlagIdx, setSelectedPriceFlagIdx] = useState<number>(0);
+  const [selectedContainerFlagIdx, setSelectedContainerFlagIdx] = useState<number>(0);
+  const [selectedConflictFlagIdx, setSelectedConflictFlagIdx] = useState<number>(0);
+  const [selectedMcqPenaltyFlagIdx, setSelectedMcqPenaltyFlagIdx] = useState<number>(0);
+  const [selectedMissingInfoFlagIdx, setSelectedMissingInfoFlagIdx] = useState<number>(0);
   const [isExportingSeparated, setIsExportingSeparated] = useState(false);
 
   // State for new excess override form (relocated from AdvancedSettings, now per-scenario)
@@ -386,52 +403,104 @@ export default function ScenarioInspector({
 
         if (!visibleErrorFlags || visibleErrorFlags.length === 0) return null;
 
+        const priceFlags = visibleErrorFlags.filter(flag => flag.category === "Price");
+        const missingInfoFlags = visibleErrorFlags.filter(flag => flag.category === "MissingInfo");
+        
+        // Container tolerance warnings (where we can accept the tolerance)
+        const containerToleranceFlags = visibleErrorFlags.filter(
+          flag => flag.category === "Container" && flag.actionType === "accept_container_tolerance"
+        );
+        
+        // MCQ/MOQ Standard Conflicts
+        const conflictFlags = visibleErrorFlags.filter(
+          flag => (flag.category === "MCQ" || flag.category === "MOQ") && !!flag.conflictInfo
+        );
+        
+        // MCQ penalty warnings (under MCQ)
+        const mcqPenaltyFlags = visibleErrorFlags.filter(
+          flag => flag.category === "MCQ" && flag.actionType === "pay_mcq_surcharge"
+        );
+        
+        // All other flags that are informational or non-interactive (e.g. late arrival, overloaded, warehouse, MOQ shortfalls, LCL)
+        const nonInteractiveFlags = visibleErrorFlags.filter(flag => {
+          if (flag.category === "Price") return false;
+          if (flag.category === "MissingInfo") return false;
+          if (flag.category === "Container" && flag.actionType === "accept_container_tolerance") return false;
+          if ((flag.category === "MCQ" || flag.category === "MOQ") && !!flag.conflictInfo) return false;
+          if (flag.category === "MCQ" && flag.actionType === "pay_mcq_surcharge") return false;
+          return true;
+        });
+
         return (
         <div className="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center gap-1.5 mb-2.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
+          <div className="flex items-center gap-1.5 mb-3 text-xs font-bold text-slate-700 uppercase tracking-wider">
             <ShieldAlert size={14} className="text-red-500 animate-pulse" />
             {t("Landed Logistics Flagged Events & Sanity Audits", lang)} ({visibleErrorFlags.length})
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
-            {visibleErrorFlags.map((flag, idx) => (
-              <div 
-                key={idx} 
-                className={`p-2.5 rounded-lg border text-xs flex gap-2 items-start ${
-                  flag.type === "error" 
-                    ? "bg-red-50/75 text-red-800 border-red-100" 
-                    : flag.type === "warning"
-                    ? "bg-amber-50/70 text-amber-800 border-amber-100"
-                    : "bg-blue-50/70 text-blue-800 border-blue-100"
-                }`}
-              >
-                <div className="shrink-0 mt-0.5">
-                  {flag.type === "error" ? (
-                    <AlertTriangle size={14} className="text-red-600 animate-bounce" />
-                  ) : flag.type === "warning" ? (
-                    <AlertTriangle size={14} className="text-amber-600" />
-                  ) : (
-                    <Info size={14} className="text-blue-600" />
-                  )}
-                </div>
-                <div>
-                  <div className="font-semibold flex items-center gap-1.5">
-                    <span className="uppercase text-[9px] px-1 py-0.2 bg-white/80 rounded border font-mono">
-                      {flag.category}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[550px] overflow-y-auto pr-1">
+            {/* Price Alerts Consolidated Card */}
+            {priceFlags.length > 0 && (
+              <div className="p-3.5 rounded-xl border bg-amber-50/80 border-amber-200/80 text-xs text-amber-900 col-span-1 md:col-span-2 shadow-sm animate-fade-in">
+                <div className="font-bold flex items-center justify-between flex-wrap gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="uppercase text-[9px] px-1.5 py-0.5 bg-amber-600 text-white rounded font-mono font-bold tracking-wider">
+                      Price
                     </span>
-                    {flag.messageKey ? tp(flag.messageKey, flag.messageParams, lang) : flag.message}
+                    <span className="text-sm text-amber-950">
+                      {lang === "TH" ? `พบข้อมูล Unit Price เป็น $0.00 จำนวน ${priceFlags.length} รายการ` : `Found ${priceFlags.length} items with $0.00 Unit Price`}
+                    </span>
                   </div>
-                  {flag.details && (
-                    <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
-                      {flag.detailsKey ? tp(flag.detailsKey, flag.detailsParams, lang) : flag.details}
-                    </p>
-                  )}
-                  {flag.category === "Price" && flag.itemCode && flag.colorCode && onFixUnitPrice && (() => {
-                    const draftKey = `${flag.itemCode}__${flag.colorCode}`;
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onFixUnitPrice) {
+                        priceFlags.forEach(f => {
+                          if (f.itemCode && f.colorCode) {
+                            onFixUnitPrice(f.itemCode, f.colorCode, "zero");
+                          }
+                        });
+                      }
+                    }}
+                    className="text-[10px] font-bold px-3 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition shadow-sm cursor-pointer"
+                  >
+                    {lang === "TH" ? "ปล่อยเป็น 0 ทั้งหมด For All" : "Keep As 0 For All"}
+                  </button>
+                </div>
+                <p className="text-[10px] text-amber-800 leading-relaxed mb-3">
+                  {lang === "TH"
+                    ? "ราคานี้อาจเป็นความผิดพลาดในการกรอกข้อมูลในไฟล์ PR ดั้งเดิม ทำให้การคำนวณต้นทุนต่างๆ ต่ำกว่าความเป็นจริง กรุณาเลือกรายการด้านล่างเพื่อทำการแก้ไขราคา หรือคลิกปุ่มด้านขวาบนเพื่อปล่อยเป็น 0 ทั้งหมด"
+                    : "These are likely data entry errors in the uploaded PR file. Choose an item below to correct its price, or click the button above to keep them all as $0.00."}
+                </p>
+                
+                <div className="flex flex-wrap items-center gap-3 bg-white/70 p-2.5 rounded-lg border border-amber-200/50">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-[9px] font-bold text-amber-800 uppercase tracking-wider mb-1">
+                      {lang === "TH" ? "เลือกรายการเพื่อแก้ไข" : "Select Item to Resolve"}
+                    </label>
+                    <select
+                      value={selectedPriceFlagIdx >= priceFlags.length ? 0 : selectedPriceFlagIdx}
+                      onChange={e => setSelectedPriceFlagIdx(parseInt(e.target.value) || 0)}
+                      className="w-full bg-white border border-amber-200 rounded px-2 py-1 text-xs text-slate-700 font-mono focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    >
+                      {priceFlags.map((pf, pidx) => (
+                        <option key={pidx} value={pidx}>
+                          {pf.itemCode} / {pf.colorCode}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {(() => {
+                    const activePriceFlagIdx = selectedPriceFlagIdx >= priceFlags.length ? 0 : selectedPriceFlagIdx;
+                    const pf = priceFlags[activePriceFlagIdx];
+                    if (!pf) return null;
+                    const draftKey = `${pf.itemCode}__${pf.colorCode}`;
                     const draftVal = priceFixDrafts[draftKey] ?? "";
                     const commit = () => {
                       const parsed = parseFloat(draftVal);
                       if (!isNaN(parsed) && parsed > 0) {
-                        onFixUnitPrice(flag.itemCode!, flag.colorCode!, parsed);
+                        onFixUnitPrice?.(pf.itemCode!, pf.colorCode!, parsed);
                         setPriceFixDrafts(prev => {
                           const copy = { ...prev };
                           delete copy[draftKey];
@@ -440,96 +509,423 @@ export default function ScenarioInspector({
                       }
                     };
                     return (
-                      <div className="flex items-center gap-1.5 mt-1.5">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder={t("New unit price", lang)}
-                          value={draftVal}
-                          onChange={(e) => setPriceFixDrafts(prev => ({ ...prev, [draftKey]: e.target.value }))}
-                          onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
-                          className="w-28 bg-white border border-amber-300 rounded px-1.5 py-1 text-[10px] font-mono text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                        />
+                      <div className="flex items-end gap-1.5 self-end">
+                        <div>
+                          <label className="block text-[9px] font-bold text-amber-800 uppercase tracking-wider mb-1">
+                            {lang === "TH" ? "ใส่ราคาใหม่" : "Enter New Unit Price ($)"}
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="e.g. 1.25"
+                            value={draftVal}
+                            onChange={(e) => setPriceFixDrafts(prev => ({ ...prev, [draftKey]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
+                            className="w-28 bg-white border border-amber-300 rounded px-2 py-1 text-xs font-mono text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={commit}
-                          className="text-[10px] font-semibold px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 transition cursor-pointer"
+                          className="text-xs font-semibold px-3 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 transition cursor-pointer h-[26px]"
                         >
                           {t("Fix Price", lang)}
                         </button>
                         <button
                           type="button"
                           onClick={() => {
-                            if (onFixUnitPrice && flag.itemCode && flag.colorCode) {
-                              onFixUnitPrice(flag.itemCode, flag.colorCode, "zero");
+                            if (onFixUnitPrice && pf.itemCode && pf.colorCode) {
+                              onFixUnitPrice(pf.itemCode, pf.colorCode, "zero");
                             }
                           }}
-                          className="text-[10px] font-semibold px-2 py-1 bg-slate-200 text-slate-700 rounded hover:bg-slate-300 transition cursor-pointer"
+                          className="text-xs font-semibold px-2.5 py-1 bg-slate-200 text-slate-700 rounded hover:bg-slate-300 transition cursor-pointer h-[26px]"
                         >
                           {t("keep as 0", lang)}
                         </button>
                       </div>
                     );
                   })()}
-                  {flag.conflictInfo && onSelectMcqMoqPreference && (
-                    <div className="mt-2 pt-2 border-t border-amber-200/60 flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] font-semibold text-slate-600">
-                        {t("Select Standard", lang)}:
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onSelectMcqMoqPreference(flag.conflictInfo!.key, "surcharge")}
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded transition cursor-pointer flex items-center gap-1 ${
-                          flag.conflictInfo.activeSource === "surcharge"
-                            ? "bg-amber-600 text-white shadow-sm ring-1 ring-amber-700"
-                            : "bg-white text-slate-700 border border-amber-300 hover:bg-amber-100"
-                        }`}
-                      >
-                        {flag.conflictInfo.activeSource === "surcharge" && <Check size={11} />}
-                        {t("Use Surcharge Rule", lang)} ({flag.conflictInfo.surchargeValue.toLocaleString()} YD)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onSelectMcqMoqPreference(flag.conflictInfo!.key, "pr_file")}
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded transition cursor-pointer flex items-center gap-1 ${
-                          flag.conflictInfo.activeSource === "pr_file"
-                            ? "bg-amber-600 text-white shadow-sm ring-1 ring-amber-700"
-                            : "bg-white text-slate-700 border border-amber-300 hover:bg-amber-100"
-                        }`}
-                      >
-                        {flag.conflictInfo.activeSource === "pr_file" && <Check size={11} />}
-                        {t("Use PR File", lang)} ({flag.conflictInfo.prFileValue.toLocaleString()} YD)
-                      </button>
-                    </div>
-                  )}
-                  {flag.flagKey && flag.actionType === "accept_container_tolerance" && onAcceptFlag && (
-                    <div className="mt-2 pt-2 border-t border-amber-200/60 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onAcceptFlag(flag.flagKey!)}
-                        className="text-[10px] font-bold px-2.5 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 shadow-sm transition cursor-pointer flex items-center gap-1"
-                      >
-                        <Check size={11} />
-                        {t("accept", lang)}
-                      </button>
-                    </div>
-                  )}
-                  {flag.flagKey && flag.actionType === "pay_mcq_surcharge" && onAcceptFlag && (
-                    <div className="mt-2 pt-2 border-t border-amber-200/60 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onAcceptFlag(flag.flagKey!)}
-                        className="text-[10px] font-bold px-2.5 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 shadow-sm transition cursor-pointer flex items-center gap-1"
-                      >
-                        <Check size={11} />
-                        {t("pay for surcharge", lang)}
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
-            ))}
+            )}
+
+            {/* Container Capacity Warnings Consolidated Card */}
+            {containerToleranceFlags.length > 0 && (
+              <div className="p-3.5 rounded-xl border bg-amber-50/80 border-amber-200/80 text-xs text-amber-900 col-span-1 md:col-span-2 shadow-sm animate-fade-in">
+                <div className="font-bold flex items-center justify-between flex-wrap gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="uppercase text-[9px] px-1.5 py-0.5 bg-amber-600 text-white rounded font-mono font-bold tracking-wider">
+                      Container Limit
+                    </span>
+                    <span className="text-sm text-amber-950">
+                      {lang === "TH" 
+                        ? `พบคำเตือนความจุตู้สินค้าใกล้เต็มขีดจำกัด ${containerToleranceFlags.length} รายการ` 
+                        : `Found ${containerToleranceFlags.length} Container Capacity Warnings`}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onAcceptFlag) {
+                        containerToleranceFlags.forEach(f => {
+                          if (f.flagKey) onAcceptFlag(f.flagKey);
+                        });
+                      }
+                    }}
+                    className="text-[10px] font-bold px-3 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition shadow-sm cursor-pointer"
+                  >
+                    {lang === "TH" ? "ยอมรับเกณฑ์เบี่ยงเบนทั้งหมด For All" : "Accept Tolerance For All"}
+                  </button>
+                </div>
+                <p className="text-[10px] text-amber-800 leading-relaxed mb-3">
+                  {lang === "TH"
+                    ? "ปริมาตรสินค้าในสัปดาห์เหล่านี้ใกล้เคียงหรือเกินขีดจำกัดตู้สินค้ามาตรฐานเล็กน้อย (แต่อยู่ในช่วงยืดหยุ่นที่ยอมรับได้) คุณสามารถกดยอมรับค่าเบี่ยงเบนเพื่อหลีกเลี่ยงการจัดส่งแยกตู้ หรือจัดการทีละรายการด้านล่าง"
+                    : "The volume for these shipments is close to the limit but within allowable tolerance. You can accept the tolerance for all to avoid splitting them, or resolve each below."}
+                </p>
+                
+                <div className="flex flex-wrap items-center gap-3 bg-white/70 p-2.5 rounded-lg border border-amber-200/50">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-[9px] font-bold text-amber-800 uppercase tracking-wider mb-1">
+                      {lang === "TH" ? "เลือกสัปดาห์เพื่อยอมรับ" : "Select Week to Resolve"}
+                    </label>
+                    <select
+                      value={selectedContainerFlagIdx >= containerToleranceFlags.length ? 0 : selectedContainerFlagIdx}
+                      onChange={e => setSelectedContainerFlagIdx(parseInt(e.target.value) || 0)}
+                      className="w-full bg-white border border-amber-200 rounded px-2 py-1 text-xs text-slate-700 font-mono focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    >
+                      {containerToleranceFlags.map((cf, cidx) => (
+                        <option key={cidx} value={cidx}>
+                          Week {cf.week} ({cf.messageKey ? tp(cf.messageKey, cf.messageParams, lang) : cf.message})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {(() => {
+                    const activeIdx = selectedContainerFlagIdx >= containerToleranceFlags.length ? 0 : selectedContainerFlagIdx;
+                    const cf = containerToleranceFlags[activeIdx];
+                    if (!cf) return null;
+                    return (
+                      <div className="flex items-end gap-1.5 self-end">
+                        <div className="text-[10px] text-slate-600 max-w-sm mr-2 leading-tight">
+                          {cf.detailsKey ? tp(cf.detailsKey, cf.detailsParams, lang) : cf.details}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onAcceptFlag && cf.flagKey) {
+                              onAcceptFlag(cf.flagKey);
+                            }
+                          }}
+                          className="text-xs font-semibold px-3 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 transition cursor-pointer h-[26px] whitespace-nowrap"
+                        >
+                          {t("accept", lang)}
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* MCQ/MOQ Standard Conflicts Consolidated Card */}
+            {conflictFlags.length > 0 && (
+              <div className="p-3.5 rounded-xl border bg-orange-50/80 border-orange-200/80 text-xs text-orange-900 col-span-1 md:col-span-2 shadow-sm animate-fade-in">
+                <div className="font-bold flex items-center justify-between flex-wrap gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="uppercase text-[9px] px-1.5 py-0.5 bg-orange-600 text-white rounded font-mono font-bold tracking-wider">
+                      Standard Conflict
+                    </span>
+                    <span className="text-sm text-orange-950">
+                      {lang === "TH" 
+                        ? `พบข้อขัดแย้งเกณฑ์ขั้นต่ำ (MCQ/MOQ) ${conflictFlags.length} รายการ` 
+                        : `Found ${conflictFlags.length} MCQ/MOQ Conflicts`}
+                    </span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onSelectMcqMoqPreference) {
+                          conflictFlags.forEach(f => {
+                            if (f.conflictInfo) onSelectMcqMoqPreference(f.conflictInfo.key, "surcharge");
+                          });
+                        }
+                      }}
+                      className="text-[10px] font-bold px-2.5 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition shadow-sm cursor-pointer"
+                    >
+                      {lang === "TH" ? "ใช้กฎค่าธรรมเนียมทั้งหมด For All" : "Use Surcharge Rule For All"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onSelectMcqMoqPreference) {
+                          conflictFlags.forEach(f => {
+                            if (f.conflictInfo) onSelectMcqMoqPreference(f.conflictInfo.key, "pr_file");
+                          });
+                        }
+                      }}
+                      className="text-[10px] font-bold px-2.5 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition shadow-sm cursor-pointer"
+                    >
+                      {lang === "TH" ? "ใช้ไฟล์ PR ทั้งหมด For All" : "Use PR File For All"}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-orange-800 leading-relaxed mb-3">
+                  {lang === "TH"
+                    ? "มีการตรวจพบค่าเกณฑ์ MCQ/MOQ ในไฟล์ PR แตกต่างจากข้อมูลตารางการตั้งค่า กรุณาเลือกมาตรฐานที่ประสงค์จะใช้เพื่อให้ระบบคำนวณอย่างถูกต้อง หรือกดปุ่มข้างต้นเพื่อจัดการทั้งหมด"
+                    : "MCQ or MOQ values in the uploaded PR file conflict with the configured settings rules. Select which standard to prioritize, or use the global buttons above to choose for all."}
+                </p>
+                
+                <div className="flex flex-wrap items-center gap-3 bg-white/70 p-2.5 rounded-lg border border-orange-200/50">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-[9px] font-bold text-orange-800 uppercase tracking-wider mb-1">
+                      {lang === "TH" ? "เลือกรายการที่มีข้อขัดแย้ง" : "Select Conflict to Resolve"}
+                    </label>
+                    <select
+                      value={selectedConflictFlagIdx >= conflictFlags.length ? 0 : selectedConflictFlagIdx}
+                      onChange={e => setSelectedConflictFlagIdx(parseInt(e.target.value) || 0)}
+                      className="w-full bg-white border border-orange-200 rounded px-2 py-1 text-xs text-slate-700 font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    >
+                      {conflictFlags.map((cf, cidx) => (
+                        <option key={cidx} value={cidx}>
+                          {cf.conflictInfo?.type} - {cf.conflictInfo?.colorCode || cf.conflictInfo?.vendor || "General"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {(() => {
+                    const activeIdx = selectedConflictFlagIdx >= conflictFlags.length ? 0 : selectedConflictFlagIdx;
+                    const cf = conflictFlags[activeIdx];
+                    if (!cf || !cf.conflictInfo) return null;
+                    const info = cf.conflictInfo;
+                    return (
+                      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center self-end">
+                        <div className="text-[10px] text-slate-600 mr-2 max-w-[260px] leading-tight">
+                          {cf.messageKey ? tp(cf.messageKey, cf.messageParams, lang) : cf.message}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => onSelectMcqMoqPreference?.(info.key, "surcharge")}
+                            className={`text-[10px] font-bold px-2.5 py-1 rounded transition cursor-pointer flex items-center gap-1 h-[26px] ${
+                              info.activeSource === "surcharge"
+                                ? "bg-orange-600 text-white shadow-sm ring-1 ring-orange-700"
+                                : "bg-white text-slate-700 border border-orange-300 hover:bg-orange-100"
+                            }`}
+                          >
+                            {info.activeSource === "surcharge" && <Check size={11} />}
+                            {t("Use Surcharge Rule", lang)} ({info.surchargeValue.toLocaleString()} YD)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onSelectMcqMoqPreference?.(info.key, "pr_file")}
+                            className={`text-[10px] font-bold px-2.5 py-1 rounded transition cursor-pointer flex items-center gap-1 h-[26px] ${
+                              info.activeSource === "pr_file"
+                                ? "bg-orange-600 text-white shadow-sm ring-1 ring-orange-700"
+                                : "bg-white text-slate-700 border border-orange-300 hover:bg-orange-100"
+                            }`}
+                          >
+                            {info.activeSource === "pr_file" && <Check size={11} />}
+                            {t("Use PR File", lang)} ({info.prFileValue.toLocaleString()} YD)
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* MCQ Penalty/Surcharge Warnings Consolidated Card */}
+            {mcqPenaltyFlags.length > 0 && (
+              <div className="p-3.5 rounded-xl border bg-rose-50/80 border-rose-200/80 text-xs text-rose-900 col-span-1 md:col-span-2 shadow-sm animate-fade-in">
+                <div className="font-bold flex items-center justify-between flex-wrap gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="uppercase text-[9px] px-1.5 py-0.5 bg-rose-600 text-white rounded font-mono font-bold tracking-wider">
+                      MCQ Surcharge
+                    </span>
+                    <span className="text-sm text-rose-950">
+                      {lang === "TH" 
+                        ? `พบข้อกำหนดสีย้อมสั่งซื้อต่ำกว่าเกณฑ์ (MCQ Surcharge) ${mcqPenaltyFlags.length} รายการ` 
+                        : `Found ${mcqPenaltyFlags.length} MCQ Surcharge Warnings`}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onAcceptFlag) {
+                        mcqPenaltyFlags.forEach(f => {
+                          if (f.flagKey) onAcceptFlag(f.flagKey);
+                        });
+                      }
+                    }}
+                    className="text-[10px] font-bold px-3 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition shadow-sm cursor-pointer"
+                  >
+                    {lang === "TH" ? "ยอมรับชำระค่าธรรมเนียมทั้งหมด For All" : "Pay MCQ Surcharge For All"}
+                  </button>
+                </div>
+                <p className="text-[10px] text-rose-800 leading-relaxed mb-3">
+                  {lang === "TH"
+                    ? "รายการสีย้อมของคู่ค้าบางรายการมีจำนวนสั่งซื้อในสัปดาห์นั้นๆ ต่ำกว่าเกณฑ์ขั้นต่ำ (MCQ) ทำให้โดนค่าปรับเพิ่มเติม คุณสามารถกดยอมรับเพื่อชำระค่าธรรมเนียม MCQ หรือจัดสัดส่วนจำนวนใหม่บนตารางปฏิทินส่งสินค้าเพื่อหลีกเลี่ยง"
+                    : "Some color items fall short of the vendor's MCQ threshold in specific weeks, triggering standard penalty surcharges. You can choose to accept the penalty for all, or rebalance quantities in the Shipment Calendar."}
+                </p>
+                
+                <div className="flex flex-wrap items-center gap-3 bg-white/70 p-2.5 rounded-lg border border-rose-200/50">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-[9px] font-bold text-rose-800 uppercase tracking-wider mb-1">
+                      {lang === "TH" ? "เลือกรายการที่ต่ำกว่าเกณฑ์" : "Select Surcharge to Resolve"}
+                    </label>
+                    <select
+                      value={selectedMcqPenaltyFlagIdx >= mcqPenaltyFlags.length ? 0 : selectedMcqPenaltyFlagIdx}
+                      onChange={e => setSelectedMcqPenaltyFlagIdx(parseInt(e.target.value) || 0)}
+                      className="w-full bg-white border border-rose-200 rounded px-2 py-1 text-xs text-slate-700 font-mono focus:outline-none focus:ring-1 focus:ring-rose-500"
+                    >
+                      {mcqPenaltyFlags.map((mf, midx) => (
+                        <option key={midx} value={midx}>
+                          {mf.colorCode} - Week {mf.week} ({mf.messageKey ? tp(mf.messageKey, mf.messageParams, lang) : mf.message})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {(() => {
+                    const activeIdx = selectedMcqPenaltyFlagIdx >= mcqPenaltyFlags.length ? 0 : selectedMcqPenaltyFlagIdx;
+                    const mf = mcqPenaltyFlags[activeIdx];
+                    if (!mf) return null;
+                    return (
+                      <div className="flex items-end gap-1.5 self-end">
+                        <div className="text-[10px] text-slate-600 max-w-sm mr-2 leading-tight">
+                          {mf.detailsKey ? tp(mf.detailsKey, mf.detailsParams, lang) : mf.details}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onAcceptFlag && mf.flagKey) {
+                              onAcceptFlag(mf.flagKey);
+                            }
+                          }}
+                          className="text-xs font-semibold px-3 py-1 bg-rose-600 text-white rounded hover:bg-rose-700 transition cursor-pointer h-[26px] whitespace-nowrap"
+                        >
+                          {t("pay for surcharge", lang)}
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* Missing Info / Settings Match Alerts Consolidated Card */}
+            {missingInfoFlags.length > 0 && (
+              <div className="p-3.5 rounded-xl border bg-violet-50/80 border-violet-200/80 text-xs text-violet-900 col-span-1 md:col-span-2 shadow-sm animate-fade-in">
+                <div className="font-bold flex items-center justify-between flex-wrap gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="uppercase text-[9px] px-1.5 py-0.5 bg-violet-600 text-white rounded font-mono font-bold tracking-wider">
+                      Settings Match
+                    </span>
+                    <span className="text-sm text-violet-950">
+                      {lang === "TH" ? `พบข้อเสนอแนะด้านข้อมูลการตั้งค่า ${missingInfoFlags.length} รายการ` : `Found ${missingInfoFlags.length} Missing Settings Warnings`}
+                    </span>
+                  </div>
+                  {missingInfoFlags.some(f => f.flagKey && f.actionType === "no_surcharge") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onAcceptFlag) {
+                          missingInfoFlags.forEach(f => {
+                            if (f.flagKey && f.actionType === "no_surcharge") onAcceptFlag(f.flagKey);
+                          });
+                        }
+                      }}
+                      className="text-[10px] font-bold px-3 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition shadow-sm cursor-pointer"
+                    >
+                      {lang === "TH" ? "ละเว้นค่าธรรมเนียมคู่ค้าทั้งหมด For All" : "No Surcharge For All"}
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-violet-800 leading-relaxed mb-3">
+                  {lang === "TH"
+                    ? "ข้อมูลคู่ค้าหรือเส้นทางการจัดส่งที่ระบบดึงมาจาก PR ไม่มีข้อมูลในส่วนการตั้งค่า ระบบได้ตั้งค่าเริ่มต้นเป็นแบบทั่วไป (Default FOB/0 Surcharge) ไว้ชั่วคราว คุณสามารถเพิ่มข้อมูลเพื่อให้การจำลองต้นทุนมีความแม่นยำยิ่งขึ้น หรือกดปล่อยผ่านได้สำหรับกรณีที่เวนเดอร์ไม่มีค่าธรรมเนียม"
+                    : "Some ship-from routes or vendors in the PR lack configured settings. Safe defaults are used; you may add specific rules in settings or dismiss if not applicable (e.g., vendors with no surcharges)."}
+                </p>
+                
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {missingInfoFlags.map((flag, midx) => (
+                    <div key={midx} className="bg-white/70 border border-violet-100 p-2.5 rounded-lg flex items-start gap-3 justify-between">
+                      <div className="flex gap-2">
+                        <AlertTriangle size={14} className="text-violet-600 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-semibold text-slate-800 text-[11px]">
+                            {flag.messageKey ? tp(flag.messageKey, flag.messageParams, lang) : flag.message}
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-0.5 leading-normal">
+                            {flag.detailsKey ? tp(flag.detailsKey, flag.detailsParams, lang) : flag.details}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {flag.flagKey && flag.actionType === "no_surcharge" && onAcceptFlag && (
+                        <button
+                          type="button"
+                          onClick={() => onAcceptFlag(flag.flagKey!)}
+                          className="text-[10px] font-bold px-2.5 py-1 bg-violet-600 text-white rounded hover:bg-violet-700 shadow-sm transition shrink-0 cursor-pointer flex items-center gap-1 self-center"
+                        >
+                          <Check size={11} />
+                          {t("No Surcharge", lang)}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Non-interactive Warnings & System Log Alerts */}
+            {nonInteractiveFlags.length > 0 && (
+              <div className="p-3.5 rounded-xl border bg-slate-100/80 border-slate-200/80 text-xs text-slate-800 col-span-1 md:col-span-2 shadow-sm animate-fade-in">
+                <div className="font-bold flex items-center gap-2 mb-2">
+                  <span className="uppercase text-[9px] px-1.5 py-0.5 bg-slate-600 text-white rounded font-mono font-bold tracking-wider">
+                    Logistics Info
+                  </span>
+                  <span className="text-sm text-slate-950">
+                    {lang === "TH" ? `ข้อบ่งชี้ทางโลจิสติกส์ & ข้อมูลระบบ (${nonInteractiveFlags.length})` : `System Alerts & Logistics Audits (${nonInteractiveFlags.length})`}
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1 mt-2">
+                  {nonInteractiveFlags.map((flag, nidx) => (
+                    <div key={nidx} className="bg-white/70 border border-slate-200/50 p-2.5 rounded-lg flex items-start gap-3">
+                      <div className="shrink-0 mt-0.5">
+                        {flag.type === "error" ? (
+                          <AlertTriangle size={14} className="text-red-600 animate-bounce" />
+                        ) : flag.type === "warning" ? (
+                          <AlertTriangle size={14} className="text-amber-600" />
+                        ) : (
+                          <Info size={14} className="text-blue-600" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-800 text-[11px] flex items-center gap-1.5 flex-wrap">
+                          <span className="uppercase text-[9px] px-1 py-0.2 bg-white rounded border font-mono font-bold text-slate-500">
+                            {flag.category}
+                          </span>
+                          <span>
+                            {flag.messageKey ? tp(flag.messageKey, flag.messageParams, lang) : flag.message}
+                          </span>
+                        </div>
+                        {flag.details && (
+                          <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                            {flag.detailsKey ? tp(flag.detailsKey, flag.detailsParams, lang) : flag.details}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
         );
@@ -656,7 +1052,7 @@ export default function ScenarioInspector({
                       {row.totalCbm.toFixed(3)} CBM
                     </td>
                     <td className="py-3 px-4 text-right font-semibold text-blue-600">
-                      {Math.round(row.totalMaterialCost).toLocaleString()} THB
+                      {formatMoney(row.totalMaterialCost)}
                     </td>
                   </tr>
                 ))}
@@ -1297,15 +1693,15 @@ export default function ScenarioInspector({
                     <div className="space-y-2 border-t border-slate-200 pt-4 text-xs mb-4">
                       <div className="flex justify-between text-slate-500">
                         <span>{t("Ocean Freight Tariff:", lang)}</span>
-                        <span className="font-mono text-slate-700">{Math.round(ship.freightCost).toLocaleString()} THB</span>
+                        <span className="font-mono text-slate-700">{formatMoney(ship.freightCost)}</span>
                       </div>
                       <div className="flex justify-between text-slate-500">
                         <span>{t("Local Port Dues & Delivery:", lang)}</span>
-                        <span className="font-mono text-slate-700">{Math.round(ship.localCost).toLocaleString()} THB</span>
+                        <span className="font-mono text-slate-700">{formatMoney(ship.localCost)}</span>
                       </div>
                       <div className="flex justify-between text-slate-500">
                         <span>{t("Customs Brokerage Dues:", lang)}</span>
-                        <span className="font-mono text-slate-700">{Math.round(ship.brokerageCost).toLocaleString()} THB</span>
+                        <span className="font-mono text-slate-700">{formatMoney(ship.brokerageCost)}</span>
                       </div>
                       <div className="flex justify-between text-slate-500 group relative">
                         <span className="flex items-center gap-1 cursor-help border-b border-dotted border-slate-400">
@@ -1315,7 +1711,7 @@ export default function ScenarioInspector({
                             <span className="text-slate-300 font-mono">{t("Shipment Value = Material Cost + MOQ Excess Cost", lang)}</span>
                           </span>
                         </span>
-                        <span className="font-mono text-slate-700">{Math.round(ship.carryingCost).toLocaleString()} THB</span>
+                        <span className="font-mono text-slate-700">{formatMoney(ship.carryingCost)}</span>
                       </div>
                       <div className="flex justify-between text-slate-500 group relative">
                         <span className="flex items-center gap-1 cursor-help border-b border-dotted border-slate-400">
@@ -1325,11 +1721,11 @@ export default function ScenarioInspector({
                             <span className="text-slate-300 font-mono">{t("Opportunity Rate = WACC %", lang)}</span>
                           </span>
                         </span>
-                        <span className="font-mono text-slate-700">{Math.round(ship.opportunityCost).toLocaleString()} THB</span>
+                        <span className="font-mono text-slate-700">{formatMoney(ship.opportunityCost)}</span>
                       </div>
                       <div className="flex justify-between font-bold border-t border-slate-200 pt-2 text-blue-600">
                         <span>{t("Subtotal Cost:", lang)}</span>
-                        <span className="font-mono">{Math.round(ship.totalLandedCost).toLocaleString()} THB</span>
+                        <span className="font-mono">{formatMoney(ship.totalLandedCost)}</span>
                       </div>
                     </div>
                   </div>
@@ -1488,8 +1884,8 @@ export default function ScenarioInspector({
                                     : (pr.unitPrice > 30 ? 1.0 : (scenario.exchangeRates?.["USD"] || 35.0))
                                   )
                               );
-                          return (pr.qty * pr.unitPrice * rate).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-                        })()} THB
+                          return formatMoney(pr.qty * pr.unitPrice * rate);
+                        })()}
                       </td>
                     </tr>
                   );

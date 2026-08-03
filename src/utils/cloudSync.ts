@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 // Cloud persistence for procurement settings (Quotes, Surcharges, etc.)
 //
 // Why this exists:

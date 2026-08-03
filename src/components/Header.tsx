@@ -4,9 +4,11 @@ import { Language, t } from "../utils/translate";
 interface HeaderProps {
   lang: Language;
   setLang: (lang: Language) => void;
+  currency: "THB" | "USD";
+  onCurrencyChange: (currency: "THB" | "USD") => void;
 }
 
-export default function Header({ lang, setLang }: HeaderProps) {
+export default function Header({ lang, setLang, currency, onCurrencyChange }: HeaderProps) {
   const now = new Date();
   const currentDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
@@ -47,29 +49,55 @@ export default function Header({ lang, setLang }: HeaderProps) {
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-2">
-          {/* EN/TH Language Switcher */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 mr-2">
-            <button
-              onClick={() => setLang("EN")}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                lang === "EN"
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              EN
-            </button>
-            <button
-              onClick={() => setLang("TH")}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                lang === "TH"
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              TH
-            </button>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-col gap-1.5">
+            {/* EN/TH Language Switcher */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                onClick={() => setLang("EN")}
+                className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                  lang === "EN"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                EN
+              </button>
+              <button
+                onClick={() => setLang("TH")}
+                className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                  lang === "TH"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                TH
+              </button>
+            </div>
+
+            {/* THB/USD Currency Switcher */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                onClick={() => onCurrencyChange("THB")}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                  currency === "THB"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                THB
+              </button>
+              <button
+                onClick={() => onCurrencyChange("USD")}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                  currency === "USD"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                USD
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col items-start md:items-end">

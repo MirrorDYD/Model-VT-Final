@@ -8,13 +8,17 @@ interface ScenarioOverviewProps {
   selectedScenarioId: string;
   onSelectScenario: (id: string) => void;
   lang: Language;
+  currency: "THB" | "USD";
+  exchangeRates: Record<string, number>;
 }
 
 export default function ScenarioOverview({
   scenarios,
   selectedScenarioId,
   onSelectScenario,
-  lang
+  lang,
+  currency,
+  exchangeRates
 }: ScenarioOverviewProps) {
   if (scenarios.length === 0) return null;
 
@@ -25,17 +29,39 @@ export default function ScenarioOverview({
   const scenario1 = scenarios.find(sc => sc.id === "1") || scenarios[0];
   const scenario1Cost = scenario1 ? scenario1.totalLandedCost : 0;
 
-  // Prepare chart data for Recharts
+  const rate = currency === "USD" ? (exchangeRates.USD || 33.5581) : 1;
+
+  const formatMoney = (val: number) => {
+    if (currency === "USD") {
+      const usdVal = val / rate;
+      return `$${usdVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+      return `${Math.round(val).toLocaleString()} THB`;
+    }
+  };
+
+  const formatDiff = (val: number) => {
+    if (Math.abs(val) < 0.01) return "-";
+    const sign = val > 0 ? "+" : "";
+    if (currency === "USD") {
+      const usdVal = val / rate;
+      return `${sign}$${usdVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+      return `${sign}${Math.round(val).toLocaleString()} THB`;
+    }
+  };
+
+  // Prepare chart data for Recharts (converted if USD is selected)
   const chartData = scenarios.map(sc => ({
     id: sc.id,
     name: `Scen ${sc.id}`,
-    "Material Cost": sc.totalMaterialCost,
-    "Shipping Cost": sc.totalFreightCost + sc.totalLocalCost + sc.totalBrokerageCost,
-    "Carrying Cost": sc.totalCarryingCost,
-    "Opportunity Cost": sc.totalOpportunityCost,
-    "MOQ Surcharge": sc.totalMoqExcessCost,
-    "Rounding Excess": sc.totalRoundingExcessCost,
-    total: sc.totalLandedCost
+    "Material Cost": sc.totalMaterialCost / rate,
+    "Shipping Cost": (sc.totalFreightCost + sc.totalLocalCost + sc.totalBrokerageCost) / rate,
+    "Carrying Cost": sc.totalCarryingCost / rate,
+    "Opportunity Cost": sc.totalOpportunityCost / rate,
+    "MOQ Surcharge": sc.totalMoqExcessCost / rate,
+    "Rounding Excess": sc.totalRoundingExcessCost / rate,
+    total: sc.totalLandedCost / rate
   }));
 
   // Custom tool tip for the charts
@@ -51,12 +77,16 @@ export default function ScenarioOverview({
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></span>
                 {entry.name}:
               </span>
-              <span className="font-mono font-medium text-slate-800">{entry.value.toLocaleString()} THB</span>
+              <span className="font-mono font-medium text-slate-800">
+                {currency === "USD" ? `$${entry.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${Math.round(entry.value).toLocaleString()} THB`}
+              </span>
             </div>
           ))}
           <div className="border-t border-slate-100 mt-2 pt-1.5 flex justify-between gap-6 font-bold text-blue-600">
             <span>{t("True Landed Cost", lang)}:</span>
-            <span className="font-mono">{total.toLocaleString()} THB</span>
+            <span className="font-mono">
+              {currency === "USD" ? `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${Math.round(total).toLocaleString()} THB`}
+            </span>
           </div>
         </div>
       );
@@ -68,11 +98,11 @@ export default function ScenarioOverview({
   const chartDataNoMaterial = scenarios.map(sc => ({
     id: sc.id,
     name: `Scen ${sc.id}`,
-    "Shipping Cost": sc.totalFreightCost + sc.totalLocalCost + sc.totalBrokerageCost,
-    "Carrying Cost": sc.totalCarryingCost,
-    "Opportunity Cost": sc.totalOpportunityCost,
-    "MOQ Surcharge": sc.totalMoqExcessCost,
-    "Rounding Excess": sc.totalRoundingExcessCost,
+    "Shipping Cost": (sc.totalFreightCost + sc.totalLocalCost + sc.totalBrokerageCost) / rate,
+    "Carrying Cost": sc.totalCarryingCost / rate,
+    "Opportunity Cost": sc.totalOpportunityCost / rate,
+    "MOQ Surcharge": sc.totalMoqExcessCost / rate,
+    "Rounding Excess": sc.totalRoundingExcessCost / rate,
   }));
 
   const CustomTooltipNoMaterial = ({ active, payload, label }: any) => {
@@ -87,12 +117,16 @@ export default function ScenarioOverview({
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></span>
                 {entry.name}:
               </span>
-              <span className="font-mono font-medium text-slate-800">{entry.value.toLocaleString()} THB</span>
+              <span className="font-mono font-medium text-slate-800">
+                {currency === "USD" ? `$${entry.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${Math.round(entry.value).toLocaleString()} THB`}
+              </span>
             </div>
           ))}
           <div className="border-t border-slate-100 mt-2 pt-1.5 flex justify-between gap-6 font-bold text-emerald-600">
             <span>{t("Shipping", lang)} + {t("Carrying", lang)} + {t("Opportunity", lang)} + {t("Surcharges (MOQ/MCQ+Rnd)", lang)}:</span>
-            <span className="font-mono">{total.toLocaleString()} THB</span>
+            <span className="font-mono">
+              {currency === "USD" ? `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${Math.round(total).toLocaleString()} THB`}
+            </span>
           </div>
         </div>
       );
@@ -136,11 +170,7 @@ export default function ScenarioOverview({
                       {t("Best Price", lang)}
                     </span>
                   )}
-                  {isScenario1 ? (
-                    <span className="bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
-                      Baseline
-                    </span>
-                  ) : hasOverloaded ? (
+                  {hasOverloaded ? (
                     <span className="bg-rose-100 text-rose-800 border border-rose-200 font-bold px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
                       {t("Overloaded", lang)}
                     </span>
@@ -179,7 +209,7 @@ export default function ScenarioOverview({
                   <div className="flex justify-between text-xs text-slate-500">
                     <span>{t("Landed Cost", lang)}:</span>
                     <span className="font-mono font-bold text-slate-800">
-                      {Math.round(sc.totalLandedCost).toLocaleString()} THB
+                      {formatMoney(sc.totalLandedCost)}
                     </span>
                   </div>
                   <div className="flex justify-between text-xs text-slate-500">
@@ -216,7 +246,7 @@ export default function ScenarioOverview({
           <div className="flex items-center gap-2 mb-6">
             <BarChart3 className="text-blue-600" size={18} />
             <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-800">
-              {t("Scenario Cost Breakdown Analysis (THB)", lang)}
+              {t(`Scenario Cost Breakdown Analysis (${currency})`, lang)}
             </h3>
           </div>
           <div className="h-80 w-full">
@@ -245,7 +275,7 @@ export default function ScenarioOverview({
           <div className="flex items-center gap-2 mb-6">
             <BarChart3 className="text-emerald-600" size={18} />
             <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-800">
-              {t("Scenario Cost Breakdown Analysis (Excluding Material Cost) (THB)", lang)}
+              {t(`Scenario Cost Breakdown Analysis (Excluding Material Cost) (${currency})`, lang)}
             </h3>
           </div>
           <div className="h-80 w-full">
@@ -333,46 +363,42 @@ export default function ScenarioOverview({
                       {sc.totalCbm.toFixed(2)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {Math.round(sc.totalMaterialCost).toLocaleString()}
+                      {formatMoney(sc.totalMaterialCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {Math.round(sc.totalFreightCost).toLocaleString()}
+                      {formatMoney(sc.totalFreightCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {Math.round(sc.totalLocalCost).toLocaleString()}
+                      {formatMoney(sc.totalLocalCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {Math.round(sc.totalBrokerageCost).toLocaleString()}
+                      {formatMoney(sc.totalBrokerageCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-800 font-bold bg-slate-50/40">
-                      {Math.round(sc.totalFreightCost + sc.totalLocalCost + sc.totalBrokerageCost).toLocaleString()}
+                      {formatMoney(sc.totalFreightCost + sc.totalLocalCost + sc.totalBrokerageCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {Math.round(sc.totalCarryingCost).toLocaleString()}
+                      {formatMoney(sc.totalCarryingCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {Math.round(sc.totalOpportunityCost).toLocaleString()}
+                      {formatMoney(sc.totalOpportunityCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {(Math.round(sc.totalMoqExcessCost + sc.totalRoundingExcessCost)).toLocaleString()}
+                      {formatMoney(sc.totalMoqExcessCost + sc.totalRoundingExcessCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-bold text-blue-600">
-                      {Math.round(sc.totalLandedCost).toLocaleString()}
+                      {formatMoney(sc.totalLandedCost)}
                     </td>
                     <td className={`py-3 px-4 text-right font-mono font-bold ${
                       diff < -1 ? "text-emerald-600 bg-emerald-50/20" : diff > 1 ? "text-rose-600" : "text-slate-400"
                     }`}>
-                      {diff === 0 ? "-" : (diff > 0 ? "+" : "") + Math.round(diff).toLocaleString() + " THB"}
+                      {formatDiff(diff)}
                     </td>
                     <td className="py-3 px-4 font-mono text-slate-500 truncate max-w-xs">
                       {sc.containersUsedList.map(c => c.split(" FCL")[0].split(" LCL")[0]).join(" + ")}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      {isScenario1 ? (
-                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-mono font-semibold">
-                          Baseline
-                        </span>
-                      ) : hasOverloaded ? (
+                      {hasOverloaded ? (
                         <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded text-[10px] font-mono font-semibold">
                           {t("Overloaded", lang)}
                         </span>
