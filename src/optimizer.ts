@@ -939,11 +939,9 @@ export function calculateContainers(
     };
   }
 
-  // Under the elastic/flexible rule:
-  // cbm <= 19 -> LCL. With up to 2.1 CBM elasticity, if totalCbm <= 21.1, we can still use LCL!
-  // But if force20ftFcl is true, we skip LCL and force FCL.
-  if (totalCbm <= 21.1 && !force20ftFcl) {
-    const isOverTheoretical = totalCbm > 19.0;
+  // Rule: LCL has NO elasticity tolerance — hard cap at 19 CBM.
+  // If force20ftFcl is true, we skip LCL and force FCL.
+  if (totalCbm <= 19.0 && !force20ftFcl) {
     const name = `LCL (${totalCbm.toFixed(2)}/19.00 CBM)`;
     return {
       num20gp: 0,
@@ -953,12 +951,10 @@ export function calculateContainers(
       isLcl: true,
       totalCbm,
       freightCost: 0,
-      status: isOverTheoretical ? "Review Needed" : "Acceptable",
-      statusDetails: isOverTheoretical
-        ? `Squeezed (High Utilization / Elastic Capacity): Over LCL theoretical capacity (19 CBM) by ${Math.max(0, totalCbm - 19.0).toFixed(2)} CBM, but within +2.1 CBM tolerance.`
-        : `Fully fits in LCL space (max 19 CBM).`,
+      status: "Acceptable",
+      statusDetails: `Fully fits in LCL space (max 19 CBM).`,
       capacity: 19.0,
-      excessCbm: Math.max(0, totalCbm - 19.0)
+      excessCbm: 0
     };
   }
 
@@ -3475,8 +3471,8 @@ export function distributeContainerPool(
     let maxUncovered = -Infinity;
 
     sortedWeeks.forEach(({ week, cbm }) => {
-      if (cbm <= 21.1) {
-        return; // Skip if volume fits in LCL (<= 21.1 CBM under the elastic rule)
+      if (cbm <= 19.0) {
+        return; // Skip if volume fits in LCL (<= 19.0 CBM, no tolerance)
       }
       const uncovered = cbm - assignedCapacity[week];
       if (uncovered > maxUncovered) {
@@ -3505,7 +3501,6 @@ export function distributeContainerPool(
     const capacity = num20gp * 25 + num40gp * 60 + num40hq * 65;
 
     if (capacity === 0 && cbm > 0) {
-      const isOverTheoretical = cbm > 19.0;
       result[week] = {
         num20gp: 0,
         num40gp: 0,
@@ -3514,12 +3509,10 @@ export function distributeContainerPool(
         isLcl: true,
         totalCbm: cbm,
         freightCost: 0,
-        status: isOverTheoretical ? "Review Needed" : "Acceptable",
-        statusDetails: isOverTheoretical
-          ? `Squeezed (High Utilization / Elastic Capacity): Over LCL theoretical capacity (19 CBM) by ${Math.max(0, cbm - 19.0).toFixed(2)} CBM, but within +2.1 CBM tolerance.`
-          : `Fully fits in LCL space (max 19 CBM).`,
+        status: "Acceptable",
+        statusDetails: `Fully fits in LCL space (max 19 CBM).`,
         capacity: 19.0,
-        excessCbm: Math.max(0, cbm - 19.0)
+        excessCbm: 0
       };
     } else {
       // Elasticity applies only to 40ft and 40HQ — 20ft has zero tolerance
@@ -3919,7 +3912,7 @@ export function findValidCombinationsForSingleRoute(
       return (h + f + t) > 0 && fclCapacity >= V;
     } else {
       const remaining = V - baseCapacity;
-      return remaining > 0 && remaining <= 21.1;
+      return remaining > 0 && remaining <= 19.0;
     }
   };
 
@@ -3949,7 +3942,7 @@ export function findValidCombinationsForSingleRoute(
           candidateTs.push(reqT);
         } else {
           // l === 1
-          const minT = Math.max(0, Math.ceil((V - 21.1 - h * 65 - f * 60) / 25));
+          const minT = Math.max(0, Math.ceil((V - 19.0 - h * 65 - f * 60) / 25));
           const maxT_lcl = Math.max(0, Math.floor((V - 0.001 - h * 65 - f * 60) / 25));
           for (let t = minT; t <= maxT_lcl; t++) {
             candidateTs.push(t);
