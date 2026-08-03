@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { ProcessedScenario, ShipmentGroup, PrEntry, MoqAlert, ExcessMcqOverride, SurchargeRule } from "../types";
 import { ShieldAlert, AlertTriangle, HelpCircle, Truck, Layers, Eye, Table, CheckSquare, Plus, Minus, Info, CheckCircle2, FileSpreadsheet, Download, RotateCcw, GripVertical, ChevronDown, ChevronUp, Pencil, X, Calendar, Trash2, Check } from "lucide-react";
 import { exportCombinedExcelReport, exportSeparatedExcelZip } from "../utils/excelExport";
-import { Language, t } from "../utils/translate";
+import { Language, t, tp } from "../utils/translate";
 import { getEffectiveMcqForColor } from "../optimizer";
 
 interface ScenarioInspectorProps {
@@ -106,6 +106,20 @@ function EditableQtyCell({
   );
 }
 
+// Displays a quantity at its true source precision instead of rounding it
+// off. Uploaded PR files commonly carry 2-3 decimal places (e.g. 157.634),
+// and truncating that with a fixed toFixed(1) silently hides real digits
+// from the source data. This only cleans up genuine floating-point noise
+// (e.g. 157.00000000002) and trims insignificant trailing zeros — it never
+// drops a meaningful digit that was actually present in the uploaded file.
+const formatOriginalQty = (n: number): string => {
+  const cleaned = Math.round(n * 1e6) / 1e6; // strip floating-point noise only
+  if (Number.isInteger(cleaned)) return cleaned.toFixed(1);
+  // Show up to 3 decimal places (the precision typically present in
+  // Syteline/ERP exports), trimming any trailing zeros beyond that.
+  return cleaned.toFixed(3).replace(/0+$/, "").replace(/\.$/, ".0");
+};
+
 export default function ScenarioInspector({ 
   scenario, 
   scenarios, 
@@ -137,7 +151,7 @@ export default function ScenarioInspector({
 
   // State for new excess override form (relocated from AdvancedSettings, now per-scenario)
   const [newOverColor, setNewOverColor] = useState("");
-  const [newOverItemCode, setNewOverItemCode] = useState("");
+  const [newOverItemDescription, setNewOverItemDescription] = useState("");
   const [newOverQty, setNewOverQty] = useState(0);
   const [newOverWeek, setNewOverWeek] = useState<number>(0); // 0 means auto/any week
 
@@ -149,7 +163,9 @@ export default function ScenarioInspector({
   const uniqueItems = useMemo(() => {
     if (!newOverColor) return [];
     return Array.from(new Set(
-      entries.filter(e => e.colorCode === newOverColor).map(e => e.itemCode)
+      entries
+        .filter(e => e.colorCode === newOverColor)
+        .map(e => e.itemDescription || e.itemCode)
     )).sort();
   }, [entries, newOverColor]);
 
@@ -162,7 +178,7 @@ export default function ScenarioInspector({
 
   // Sync item selection when color changes
   useEffect(() => {
-    setNewOverItemCode(""); // Default to "All Items" when color shifts
+    setNewOverItemDescription(""); // Default to "All Items" when color shifts
   }, [newOverColor]);
 
   const handleAddOverride = () => {
@@ -171,7 +187,7 @@ export default function ScenarioInspector({
     // Auto-lookup price and cbm per unit from raw entries
     const matchingPr = entries.find(e =>
       e.colorCode === newOverColor &&
-      (!newOverItemCode || e.itemCode === newOverItemCode)
+      (!newOverItemDescription || (e.itemDescription || e.itemCode) === newOverItemDescription)
     );
     const pricePerUnit = matchingPr ? matchingPr.unitPrice : undefined;
     const cbmPerUnit = matchingPr && matchingPr.qty > 0 ? matchingPr.cbm / matchingPr.qty : 0.003;
@@ -179,14 +195,14 @@ export default function ScenarioInspector({
     const ov: ExcessMcqOverride = {
       id: Math.random().toString(36).substring(2),
       colorCode: newOverColor,
-      itemCode: newOverItemCode || undefined,
+      itemDescription: newOverItemDescription || undefined,
       additionalQty: newOverQty,
       pricePerUnit,
       cbmPerUnit,
       targetWeek: newOverWeek || undefined
     };
     setExcessOverrides([...excessOverrides, ov]);
-    setNewOverItemCode("");
+    setNewOverItemDescription("");
     setNewOverQty(0);
     setNewOverWeek(0);
   };
@@ -269,13 +285,13 @@ export default function ScenarioInspector({
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 mb-6 border-b border-slate-100">
         <div>
           <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded text-xs font-mono font-semibold uppercase">
-            Deep-Dive Inspector
+            {t("Deep-Dive Inspector", lang)}
           </span>
           <h2 className="text-xl font-bold text-slate-800 mt-1.5 font-sans">
             Scenario {scenario.id} {t("Detailed Breakdown", lang)}
           </h2>
           <p className="text-slate-500 text-xs mt-1">
-            Analyzing {scenario.numShipments} shipments, cumulative rounding excess, and MCQ thresholds.
+            {tp("flag.analyzingShipments", { count: scenario.numShipments }, lang)}
           </p>
         </div>
 
@@ -285,10 +301,10 @@ export default function ScenarioInspector({
             <button
               onClick={onResetOverrides}
               className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-semibold rounded-lg px-3 py-1.5 text-xs flex items-center justify-center gap-2 shadow-sm transition duration-150 cursor-pointer"
-              title="Reset manual shipment date assignments back to defaults"
+              title={t("Reset manual shipment date assignments back to defaults", lang)}
             >
               <RotateCcw size={13} />
-              <span>Reset Assignments</span>
+              <span>{t("Reset Assignments", lang)}</span>
             </button>
           )}
 
@@ -296,10 +312,10 @@ export default function ScenarioInspector({
             <button
               onClick={() => exportCombinedExcelReport(scenario)}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg px-3 py-1.5 text-xs flex items-center justify-center gap-2 shadow-sm transition duration-150 cursor-pointer"
-              title="One workbook with every shipment's PR lines, ordered by PO Delivery Date"
+              title={t("One workbook with every shipment's PR lines, ordered by PO Delivery Date", lang)}
             >
               <Download size={13} />
-              <span>Download Combined Excel Report</span>
+              <span>{t("Download Combined Excel Report", lang)}</span>
             </button>
             <button
               onClick={async () => {
@@ -312,36 +328,72 @@ export default function ScenarioInspector({
               }}
               disabled={isExportingSeparated}
               className="bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold rounded-lg px-3 py-1.5 text-xs flex items-center justify-center gap-2 shadow-sm transition duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-wait"
-              title="A ZIP with one workbook per shipment (named by PO Delivery Date), listing that shipment's PR Num / PR Line"
+              title={t("A ZIP with one workbook per shipment (named by PO Delivery Date), listing that shipment's PR Num / PR Line", lang)}
             >
               <Download size={13} />
-              <span>{isExportingSeparated ? "Zipping…" : "Download Separated Excel Report"}</span>
+              <span>{isExportingSeparated ? t("Zipping…", lang) : t("Download Separated Excel Report", lang)}</span>
             </button>
           </div>
 
           {scenario.containerMatchingStatus === "Approved" ? (
             <div className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              Container Check: Approved
+              {t("Container Check: Approved", lang)}
             </div>
           ) : (
             <div className="bg-amber-50 text-amber-700 border border-amber-100 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold flex items-center gap-1.5">
               <AlertTriangle size={14} className="text-amber-600 shrink-0" />
-              Container Check: Manual Review Required
+              {t("Container Check: Manual Review Required", lang)}
             </div>
           )}
         </div>
       </div>
 
       {/* Error and Warning Flagging Tray */}
-      {scenario.errorFlags && scenario.errorFlags.length > 0 && (
+      {(() => {
+        // MCQ-category flags are computed once by the optimizer and don't
+        // automatically know about manual Shipment Calendar Matrix qty
+        // overrides applied afterward. Without this filter, editing a
+        // cell up to (or past) the MCQ threshold makes the matrix cell
+        // itself turn green/resolved, but the flag stays listed here
+        // forever, incorrectly telling the user a surcharge still applies
+        // — even though the same override-aware total (colorWeekEffectiveTotal)
+        // the matrix cell uses would show it's actually resolved.
+        const visibleErrorFlags = (scenario.errorFlags || []).filter(flag => {
+          if (flag.category !== "MCQ" || !flag.colorCode || flag.week === undefined) return true;
+
+          const colorAlert = scenario.moqAlerts.find(a => a.colorCode === flag.colorCode);
+          const colorEntries = scenario.processedEntries.filter(e => e.colorCode === flag.colorCode);
+          const colorVendor = colorEntries[0]?.vendor;
+          const limit = colorAlert?.targetMoq || getEffectiveMcqForColor(flag.colorCode, colorVendor, surchargeRules, scenario.mcqThreshold || 500);
+
+          const itemDescriptionsForColor = Array.from(new Set(colorEntries.map(e => e.itemDescription || e.itemCode)));
+          const colorWeekEffectiveTotal = itemDescriptionsForColor.reduce((sum, itemDescription) => {
+            const cellKey = `${itemDescription}__${flag.colorCode}__${flag.week}`;
+            if (Object.prototype.hasOwnProperty.call(matrixQtyOverrides, cellKey)) {
+              return sum + matrixQtyOverrides[cellKey];
+            }
+            const naturalQty = colorEntries
+              .filter(e => (e.itemDescription || e.itemCode) === itemDescription && e.assignedWeek === flag.week)
+              .reduce((s, e) => s + e.qty, 0);
+            return sum + naturalQty;
+          }, 0);
+
+          // Keep the flag only if the override-aware total still falls
+          // short of MCQ — hide it once the manual edit resolves it.
+          return colorWeekEffectiveTotal < limit;
+        });
+
+        if (!visibleErrorFlags || visibleErrorFlags.length === 0) return null;
+
+        return (
         <div className="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm">
           <div className="flex items-center gap-1.5 mb-2.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
             <ShieldAlert size={14} className="text-red-500 animate-pulse" />
-            Landed Logistics Flagged Events & Sanity Audits ({scenario.errorFlags.length})
+            {t("Landed Logistics Flagged Events & Sanity Audits", lang)} ({visibleErrorFlags.length})
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
-            {scenario.errorFlags.map((flag, idx) => (
+            {visibleErrorFlags.map((flag, idx) => (
               <div 
                 key={idx} 
                 className={`p-2.5 rounded-lg border text-xs flex gap-2 items-start ${
@@ -366,9 +418,13 @@ export default function ScenarioInspector({
                     <span className="uppercase text-[9px] px-1 py-0.2 bg-white/80 rounded border font-mono">
                       {flag.category}
                     </span>
-                    {flag.message}
+                    {flag.messageKey ? tp(flag.messageKey, flag.messageParams, lang) : flag.message}
                   </div>
-                  {flag.details && <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{flag.details}</p>}
+                  {flag.details && (
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                      {flag.detailsKey ? tp(flag.detailsKey, flag.detailsParams, lang) : flag.details}
+                    </p>
+                  )}
                   {flag.category === "Price" && flag.itemCode && flag.colorCode && onFixUnitPrice && (() => {
                     const draftKey = `${flag.itemCode}__${flag.colorCode}`;
                     const draftVal = priceFixDrafts[draftKey] ?? "";
@@ -389,7 +445,7 @@ export default function ScenarioInspector({
                           type="number"
                           step="0.01"
                           min="0"
-                          placeholder="New unit price"
+                          placeholder={t("New unit price", lang)}
                           value={draftVal}
                           onChange={(e) => setPriceFixDrafts(prev => ({ ...prev, [draftKey]: e.target.value }))}
                           onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
@@ -400,7 +456,7 @@ export default function ScenarioInspector({
                           onClick={commit}
                           className="text-[10px] font-semibold px-2 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 transition cursor-pointer"
                         >
-                          Fix Price
+                          {t("Fix Price", lang)}
                         </button>
                         <button
                           type="button"
@@ -476,7 +532,8 @@ export default function ScenarioInspector({
             ))}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Tabs */}
       <div className="flex border-b border-slate-100 mb-6 gap-2 overflow-x-auto">
@@ -573,11 +630,11 @@ export default function ScenarioInspector({
             <table className="w-full text-xs text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[10px] uppercase tracking-wider">
-                  <th className="py-3 px-4">Item Description</th>
-                  <th className="py-3 px-4">Color Code</th>
-                  <th className="py-3 px-4 text-right">Total Ordered Quantity</th>
-                  <th className="py-3 px-4 text-right">Total CBM Volume</th>
-                  <th className="py-3 px-4 text-right">Total Material Cost</th>
+                  <th className="py-3 px-4">{t("Item Description", lang)}</th>
+                  <th className="py-3 px-4">{t("Color Code", lang)}</th>
+                  <th className="py-3 px-4 text-right">{t("Total Ordered Quantity", lang)}</th>
+                  <th className="py-3 px-4 text-right">{t("Total CBM Volume", lang)}</th>
+                  <th className="py-3 px-4 text-right">{t("Total Material Cost", lang)}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -634,12 +691,12 @@ export default function ScenarioInspector({
             <table className="w-full text-xs text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[10px] uppercase tracking-wider">
-                  <th className="py-3 px-4">Item Description</th>
-                  <th className="py-3 px-4">Color Code</th>
-                  <th className="py-3 px-4 text-center">MCQ Limit</th>
+                  <th className="py-3 px-4">{t("Item Description", lang)}</th>
+                  <th className="py-3 px-4">{t("Color Code", lang)}</th>
+                  <th className="py-3 px-4 text-center">{t("MCQ Limit", lang)}</th>
                   {shipmentColumns.map((col, idx) => (
                     <th key={idx} className="py-3 px-4 text-center">
-                      Shipment {idx + 1}
+                      {t("Shipment", lang)} {idx + 1}
                       <div className="text-[9px] font-mono font-normal text-slate-400 normal-case mt-0.5">
                         {formatDate(col.shipmentDate || col.date)}
                       </div>
@@ -675,6 +732,17 @@ export default function ScenarioInspector({
                         // This item's own PRs for this week
                         const weekPrs = itemColorEntries.filter(p => p.assignedWeek === col.week);
                         const qty = weekPrs.reduce((sum, p) => sum + p.qty, 0);
+                        // "Original Qty" is the pre-rounding precursor of
+                        // the SAME number shown in the box above — i.e. the
+                        // raw (unrounded) qty of the entries currently
+                        // assigned to this week, before Math.round/MCQ
+                        // rounding was applied. It must use the identical
+                        // grouping as `qty` (assignedWeek === col.week);
+                        // grouping by naturalAssignedWeek instead would pair
+                        // this caption with a *different* week's entries
+                        // whenever a PR got moved (MCQ push-forward,
+                        // rounding propagation, etc.), producing numbers
+                        // that don't correspond to what's in the box.
                         const originalQty = weekPrs.reduce((sum, p) => sum + p.originalQty, 0);
 
                         // Manual override — keyed per itemDescription+color+week
@@ -764,8 +832,8 @@ export default function ScenarioInspector({
                                   </button>
                                 )}
                               </div>
-                              {(qty > 0 || hasOverride) && (
-                                <span className="text-[10px] text-slate-400">Original Qty: {originalQty.toFixed(1)}</span>
+                              {(qty > 0 || hasOverride || originalQty > 0) && (
+                                <span className="text-[10px] text-slate-400">Original Qty: {formatOriginalQty(originalQty)}</span>
                               )}
                               {hasOverride && (
                                 <span className="flex items-center gap-0.5 text-[8px] text-blue-600 font-sans font-semibold uppercase tracking-wide">
@@ -784,56 +852,72 @@ export default function ScenarioInspector({
             </table>
           </div>
 
-          {/* Order-level MOQ Status Banner */}
+          {/* Per-Shipment MOQ Status */}
           {(() => {
-            const totalOrderQty = scenario.processedEntries.reduce((sum, p) => sum + p.qty, 0);
             const orderMoq = scenario.moqThreshold || 3000;
-            const isMoqMet = totalOrderQty >= orderMoq;
-            const pct = Math.min(100, (totalOrderQty / orderMoq) * 100);
+            const shipmentWeeks = Array.from(new Set(scenario.processedEntries.map(p => p.assignedWeek))).sort((a, b) => a - b);
+            const shipmentSummaries = shipmentWeeks.map(w => {
+              const shipmentQty = scenario.processedEntries
+                .filter(p => p.assignedWeek === w)
+                .reduce((sum, p) => sum + p.qty, 0);
+              return { week: w, qty: shipmentQty, isMoqMet: shipmentQty >= orderMoq };
+            }).filter(s => s.qty > 0);
+
+            if (shipmentSummaries.length === 0) return null;
 
             return (
-              <div className={`p-4 rounded-xl border flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-sm transition-all ${
-                isMoqMet 
-                  ? "bg-emerald-50/60 border-emerald-100 text-emerald-900" 
-                  : "bg-amber-50 border-amber-100 text-amber-900"
-              }`}>
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-2">
-                    {isMoqMet ? (
-                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                        MOQ Met
-                      </span>
-                    ) : (
-                      <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase animate-pulse">
-                        MOQ Not Met
-                      </span>
-                    )}
-                    <span className="font-bold text-sm">
-                      {isMoqMet ? "Order-Level MOQ Target Achieved" : "Order-Level MOQ Target Not Met"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    {isMoqMet 
-                      ? `The entire order total is fully compliant with the minimum order quantity requirement (Target: ${orderMoq.toLocaleString()} YD, Actual: ${Math.round(totalOrderQty).toLocaleString()} YD).`
-                      : `The entire order falls short of the required minimum order quantity of ${orderMoq.toLocaleString()} YD by ${(orderMoq - totalOrderQty).toFixed(0)} YD. Applied surcharges at individual color/PO level.`
-                    }
-                  </p>
+              <div className="space-y-2 mb-2">
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  {t("Per-Shipment MOQ Status", lang)}
                 </div>
+                {shipmentSummaries.map(({ week, qty, isMoqMet }) => {
+                  const pct = Math.min(100, (qty / orderMoq) * 100);
+                  return (
+                    <div key={week} className={`p-4 rounded-xl border flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-sm transition-all ${
+                      isMoqMet
+                        ? "bg-emerald-50/60 border-emerald-100 text-emerald-900"
+                        : "bg-amber-50 border-amber-100 text-amber-900"
+                    }`}>
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          {isMoqMet ? (
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                              {t("MOQ Met", lang)}
+                            </span>
+                          ) : (
+                            <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase animate-pulse">
+                              {t("MOQ Not Met", lang)}
+                            </span>
+                          )}
+                          <span className="font-bold text-sm">
+                            {t("Shipment", lang)} {week} {isMoqMet ? t("MOQ Target Achieved", lang) : t("MOQ Target Not Met", lang)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          {isMoqMet
+                            ? tp("flag.shipmentMoqMetDetail", { moq: orderMoq.toLocaleString(), qty: Math.round(qty).toLocaleString() }, lang)
+                            : tp("flag.shipmentMoqShortDetail", { moq: orderMoq.toLocaleString(), shortfall: (orderMoq - qty).toFixed(0) }, lang)
+                          }
+                        </p>
+                      </div>
 
-                <div className="flex flex-col items-start md:items-end gap-1 font-mono shrink-0">
-                  <div className="text-xs font-semibold text-slate-500">
-                    Order MOQ Ratio
-                  </div>
-                  <div className="text-lg font-extrabold text-slate-800">
-                    {Math.round(totalOrderQty).toLocaleString()} / {orderMoq.toLocaleString()} YD
-                  </div>
-                  <div className="w-full md:w-32 bg-slate-100 h-1.5 rounded-full overflow-hidden mt-1">
-                    <div 
-                      className={`h-full transition-all duration-500 ${isMoqMet ? "bg-emerald-500" : "bg-amber-500"}`} 
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
+                      <div className="flex flex-col items-start md:items-end gap-1 font-mono shrink-0">
+                        <div className="text-xs font-semibold text-slate-500">
+                          {t("Shipment MOQ Ratio", lang)}
+                        </div>
+                        <div className="text-lg font-extrabold text-slate-800">
+                          {Math.round(qty).toLocaleString()} / {orderMoq.toLocaleString()} YD
+                        </div>
+                        <div className="w-full md:w-32 bg-slate-100 h-1.5 rounded-full overflow-hidden mt-1">
+                          <div
+                            className={`h-full transition-all duration-500 ${isMoqMet ? "bg-emerald-500" : "bg-amber-500"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           })()}
@@ -855,7 +939,7 @@ export default function ScenarioInspector({
                       <span className="font-mono text-blue-600 font-semibold">{alert.colorCode}</span>
                       <span className="text-slate-500">Shipment {alert.week} quantity</span>
                       <span className="font-mono bg-slate-50 text-slate-700 px-1 py-0.5 rounded border border-slate-100">
-                        {alert.originalQty.toFixed(1)} YD
+                        {formatOriginalQty(alert.originalQty)} YD
                       </span>
                       <span className="text-slate-500">was below MCQ limit of</span>
                       <span className="font-mono bg-slate-50 text-slate-700 px-1 py-0.5 rounded border border-slate-100">
@@ -911,6 +995,22 @@ export default function ScenarioInspector({
                 return `${year}-${month}-${day}`;
               };
               const computedDateStr = computedDates[w - 1] ? toDateInputValue(computedDates[w - 1]) : "";
+              // Long-format date string including weekday, e.g.
+              // "Friday, February 6, 2026" (or Thai equivalent). Native
+              // <input type="date"> can't render this itself, so we show
+              // it as a caption alongside the input.
+              const formatLongDate = (dateInputValue: string) => {
+                if (!dateInputValue) return "";
+                const [y, m, d] = dateInputValue.split("-").map(Number);
+                const dateObj = new Date(y, m - 1, d);
+                if (isNaN(dateObj.getTime())) return "";
+                return dateObj.toLocaleDateString(lang === "TH" ? "th-TH" : "en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                });
+              };
               // Show the computed date directly in the field by default so
               // the user can see it at a glance — but this is purely a
               // display fallback. shipmentDates itself stays untouched
@@ -933,13 +1033,18 @@ export default function ScenarioInspector({
                     }}
                     className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
                   />
+                  {dateVal && (
+                    <div className="text-[10px] text-slate-500 font-medium px-0.5">
+                      {formatLongDate(dateVal)}
+                    </div>
+                  )}
                   <div className="flex justify-between items-center text-[9px]">
                     <span className="text-slate-400 font-medium">
                       {lang === "TH" ? `ชิปเมนต์กลุ่มที่ ${w}` : `Shipment Group ${w}`}
                     </span>
                     {computedDateStr && !shipmentDates[w - 1] && (
                       <span className="text-blue-500 font-mono" title="Dynamically Computed Baseline Date — edit above to override">
-                        Computed: {computedDateStr}
+                        Computed: {formatLongDate(computedDateStr)}
                       </span>
                     )}
                     {shipmentDates[w - 1] && (
@@ -959,7 +1064,7 @@ export default function ScenarioInspector({
       {activeTab === "excess" && (() => {
         const matchingPr = entries.find(e =>
           e.colorCode === newOverColor &&
-          (!newOverItemCode || e.itemCode === newOverItemCode)
+          (!newOverItemDescription || (e.itemDescription || e.itemCode) === newOverItemDescription)
         );
         const foundUnitPrice = matchingPr ? matchingPr.unitPrice : 0;
         const foundCbmPerUnit = matchingPr && matchingPr.qty > 0 ? matchingPr.cbm / matchingPr.qty : 0.003;
@@ -981,7 +1086,7 @@ export default function ScenarioInspector({
                     className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     {uniqueColors.length === 0 ? (
-                      <option value="">No colors available</option>
+                      <option value="">{t("No colors available", lang)}</option>
                     ) : (
                       uniqueColors.map(color => (
                         <option key={color} value={color}>{color}</option>
@@ -990,10 +1095,10 @@ export default function ScenarioInspector({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[9px] font-semibold text-slate-500 mb-1">{t("Item Code (Optional)", lang)}</label>
+                  <label className="block text-[9px] font-semibold text-slate-500 mb-1">{t("Item Description (Optional)", lang)}</label>
                   <select
-                    value={newOverItemCode}
-                    onChange={e => setNewOverItemCode(e.target.value)}
+                    value={newOverItemDescription}
+                    onChange={e => setNewOverItemDescription(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">{t("All Items under Color", lang)}</option>
@@ -1073,10 +1178,10 @@ export default function ScenarioInspector({
                       <tr key={o.id} className="text-slate-600 hover:bg-slate-50">
                         <td className="p-2 font-medium">
                           <div className="truncate max-w-[120px]">{o.colorCode}</div>
-                          {o.itemCode && <div className="text-[9px] text-slate-400 font-mono">{o.itemCode}</div>}
+                          {o.itemDescription && <div className="text-[9px] text-slate-400 font-mono truncate max-w-[120px]">{o.itemDescription}</div>}
                         </td>
                         <td className="p-2 font-mono text-slate-500">
-                          {o.targetWeek ? `${t("Week", lang)} ${o.targetWeek}` : t("Auto / Under MCQ", lang)}
+                          {o.targetWeek ? `${t("Shipment", lang)} ${o.targetWeek}` : t("Auto / Under MCQ", lang)}
                         </td>
                         <td className="p-2 text-right font-mono text-violet-600 font-bold">+{o.additionalQty} YD</td>
                         <td className="p-2 text-right font-mono">${o.pricePerUnit?.toFixed(2) || "Default"}</td>
@@ -1104,7 +1209,7 @@ export default function ScenarioInspector({
           <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex gap-3 text-xs text-slate-600 leading-relaxed">
             <Info size={18} className="text-blue-600 shrink-0 mt-0.5" />
             <div>
-              <span className="text-blue-900 font-bold">Interactive Shipment Planning:</span> Drag and drop any materials between shipment cards to reschedule them manually, or use the drop-down selector on each line. The logistics engine will instantly re-calculate ocean freight container packing, MCQ surcharges, carrying penalties, and total landed costs!
+              <span className="text-blue-900 font-bold">{t("Interactive Shipment Planning:", lang)}</span> {t("Drag and drop any materials between shipment cards to reschedule them manually, or use the drop-down selector on each line. The logistics engine will instantly re-calculate ocean freight container packing, MCQ surcharges, carrying penalties, and total landed costs!", lang)}
             </div>
           </div>
 
@@ -1191,39 +1296,39 @@ export default function ScenarioInspector({
                     {/* Cost Breakdown */}
                     <div className="space-y-2 border-t border-slate-200 pt-4 text-xs mb-4">
                       <div className="flex justify-between text-slate-500">
-                        <span>Ocean Freight Tariff:</span>
+                        <span>{t("Ocean Freight Tariff:", lang)}</span>
                         <span className="font-mono text-slate-700">{Math.round(ship.freightCost).toLocaleString()} THB</span>
                       </div>
                       <div className="flex justify-between text-slate-500">
-                        <span>Local Port Dues & Delivery:</span>
+                        <span>{t("Local Port Dues & Delivery:", lang)}</span>
                         <span className="font-mono text-slate-700">{Math.round(ship.localCost).toLocaleString()} THB</span>
                       </div>
                       <div className="flex justify-between text-slate-500">
-                        <span>Customs Brokerage Dues:</span>
+                        <span>{t("Customs Brokerage Dues:", lang)}</span>
                         <span className="font-mono text-slate-700">{Math.round(ship.brokerageCost).toLocaleString()} THB</span>
                       </div>
                       <div className="flex justify-between text-slate-500 group relative">
                         <span className="flex items-center gap-1 cursor-help border-b border-dotted border-slate-400">
-                          Carrying Cost Penalty:
+                          {t("Carrying Cost Penalty:", lang)}
                           <span className="invisible group-hover:visible absolute left-0 bottom-6 z-10 w-64 p-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg leading-normal">
-                            Formula: (Shipment Value ÷ 2) × Carrying Rate × (Days Early / 365)<br/>
-                            <span className="text-slate-300 font-mono">Shipment Value = Material Cost + MOQ Excess Cost</span>
+                            {t("Formula: (Shipment Value ÷ 2) × Carrying Rate × (Days Early / 365)", lang)}<br/>
+                            <span className="text-slate-300 font-mono">{t("Shipment Value = Material Cost + MOQ Excess Cost", lang)}</span>
                           </span>
                         </span>
                         <span className="font-mono text-slate-700">{Math.round(ship.carryingCost).toLocaleString()} THB</span>
                       </div>
                       <div className="flex justify-between text-slate-500 group relative">
                         <span className="flex items-center gap-1 cursor-help border-b border-dotted border-slate-400">
-                          Capital Opportunity Cost:
+                          {t("Capital Opportunity Cost:", lang)}
                           <span className="invisible group-hover:visible absolute left-0 bottom-6 z-10 w-64 p-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg leading-normal">
-                            Formula: Shipment Value × [ (1 + Opportunity Rate)^(Days Early / 365) − 1 ]<br/>
-                            <span className="text-slate-300 font-mono">Opportunity Rate = WACC %</span>
+                            {t("Formula: Shipment Value × [ (1 + Opportunity Rate)^(Days Early / 365) − 1 ]", lang)}<br/>
+                            <span className="text-slate-300 font-mono">{t("Opportunity Rate = WACC %", lang)}</span>
                           </span>
                         </span>
                         <span className="font-mono text-slate-700">{Math.round(ship.opportunityCost).toLocaleString()} THB</span>
                       </div>
                       <div className="flex justify-between font-bold border-t border-slate-200 pt-2 text-blue-600">
-                        <span>Subtotal Cost:</span>
+                        <span>{t("Subtotal Cost:", lang)}</span>
                         <span className="font-mono">{Math.round(ship.totalLandedCost).toLocaleString()} THB</span>
                       </div>
                     </div>
@@ -1304,18 +1409,18 @@ export default function ScenarioInspector({
             <table className="w-full text-xs text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[10px] uppercase tracking-wider">
-                  <th className="py-3 px-3">PR ID</th>
-                  <th className="py-3 px-3">Item Code</th>
-                  <th className="py-3 px-3">Color</th>
-                  <th className="py-3 px-3 text-right">Original Qty</th>
-                  <th className="py-3 px-3 text-right">Final Qty</th>
-                  <th className="py-3 px-3 text-center">Rounding/MOQ Excess</th>
-                  <th className="py-3 px-3 text-right">Price</th>
-                  <th className="py-3 px-3 text-center">PR Due Date</th>
-                  <th className="py-3 px-3 text-center">PO Due Date</th>
-                  <th className="py-3 px-3 text-center">Days Early</th>
-                  <th className="py-3 px-3 text-right">Volume (CBM)</th>
-                  <th className="py-3 px-3 text-right">Material Value</th>
+                  <th className="py-3 px-3">{t("PR ID", lang)}</th>
+                  <th className="py-3 px-3">{t("Item Code", lang)}</th>
+                  <th className="py-3 px-3">{t("Color", lang)}</th>
+                  <th className="py-3 px-3 text-right">{t("Original Qty", lang)}</th>
+                  <th className="py-3 px-3 text-right">{t("Final Qty", lang)}</th>
+                  <th className="py-3 px-3 text-center">{t("Rounding/MOQ Excess", lang)}</th>
+                  <th className="py-3 px-3 text-right">{t("Price", lang)}</th>
+                  <th className="py-3 px-3 text-center">{t("PR Due Date", lang)}</th>
+                  <th className="py-3 px-3 text-center">{t("PO Due Date", lang)}</th>
+                  <th className="py-3 px-3 text-center">{t("Days Early", lang)}</th>
+                  <th className="py-3 px-3 text-right">{t("Volume (CBM)", lang)}</th>
+                  <th className="py-3 px-3 text-right">{t("Material Value", lang)}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1336,7 +1441,7 @@ export default function ScenarioInspector({
                         {pr.colorCode}
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-slate-500">
-                        {pr.originalQty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {pr.originalQty.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
                       </td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">
                         {pr.qty.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -1401,7 +1506,7 @@ export default function ScenarioInspector({
           <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex gap-3 text-xs text-slate-700 leading-relaxed">
             <CheckSquare size={18} className="text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <span className="text-emerald-900 font-bold">Official Requisition Mapping Worksheet:</span> Below is the official compiled Syteline Requisition schedule for <strong>Scenario {scenario.id}</strong>. In keeping with Syteline standards, we output the <strong>Requisition</strong> and <strong>Line</strong> columns mapped alongside their optimized quantities and delivery structures.
+              <span className="text-emerald-900 font-bold">{t("Official Requisition Mapping Worksheet:", lang)}</span> {t("Below is the official compiled Syteline Requisition schedule for", lang)} <strong>{t("Scenario", lang)} {scenario.id}</strong>. {t("In keeping with Syteline standards, we output the Requisition and Line columns mapped alongside their optimized quantities and delivery structures.", lang)}
             </div>
           </div>
 
@@ -1409,17 +1514,17 @@ export default function ScenarioInspector({
             <table className="w-full text-xs text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[10px] uppercase tracking-wider">
-                  <th className="py-3 px-4">Requisition No.</th>
-                  <th className="py-3 px-4 text-center">Line No.</th>
-                  <th className="py-3 px-4">Item Code</th>
-                  <th className="py-3 px-4">Color Description</th>
-                  <th className="py-3 px-4 text-right">Optimized Qty</th>
-                  <th className="py-3 px-4 text-center">UOM</th>
-                  <th className="py-3 px-4 text-center">PO Delivery Date</th>
-                  <th className="py-3 px-4 text-center">PR Due Date</th>
-                  <th className="py-3 px-4 text-center">Days Early</th>
-                  <th className="py-3 px-4 text-center">PR Delivery Date (Vendor Loading)</th>
-                  <th className="py-3 px-4 text-center">PO Due Date (Arrival at VT)</th>
+                  <th className="py-3 px-4">{t("Requisition No.", lang)}</th>
+                  <th className="py-3 px-4 text-center">{t("Line No.", lang)}</th>
+                  <th className="py-3 px-4">{t("Item Code", lang)}</th>
+                  <th className="py-3 px-4">{t("Color Description", lang)}</th>
+                  <th className="py-3 px-4 text-right">{t("Optimized Qty", lang)}</th>
+                  <th className="py-3 px-4 text-center">{t("UOM", lang)}</th>
+                  <th className="py-3 px-4 text-center">{t("PO Delivery Date", lang)}</th>
+                  <th className="py-3 px-4 text-center">{t("PR Due Date", lang)}</th>
+                  <th className="py-3 px-4 text-center">{t("Days Early", lang)}</th>
+                  <th className="py-3 px-4 text-center">{t("PR Delivery Date (Vendor Loading)", lang)}</th>
+                  <th className="py-3 px-4 text-center">{t("PO Due Date (Arrival at VT)", lang)}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

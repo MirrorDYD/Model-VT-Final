@@ -29,6 +29,7 @@ export interface PrEntry {
   size?: string;         // Mapped Size from sheet row
   transitLeadTimeDays?: number;   // Per-PR transit lead time in days, from the uploaded "Transit Lead Time (Days)" column. When present, this is the source of truth for this PR's transit time — it takes priority over both the actualDelivery-derived estimate and the route's default transit time.
   consolidateWeekdayRaw?: string; // Per-PR consolidation/loading weekday(s), from the uploaded "Consolidate (Weekday)" column (e.g. "Tuesday", "Tue/Fri", "2,5"). When present, this is the source of truth for which weekday(s) this PR's shipment can load on — it takes priority over the shipFrom-based default loading-day rule.
+  naturalAssignedWeek?: number;   // The shipment this PR belonged to right after Days Early grouping / manual overrides, before the loading-day reassignment pass or MOQ/MCQ pull-forward moved anything. Used by the UI to show each shipment's true "before optimization" quantity, since `assignedWeek` itself changes once those passes run.
 
   // --- Raw pass-through fields captured verbatim from the uploaded PR file ---
   // These are captured by exact column name/position (bypassing the fuzzy
@@ -48,6 +49,11 @@ export interface PrEntry {
   orderMultipleRaw?: number;             // Raw "Order Multiple" column
   unitWeightRaw?: number;                // Raw "Unit Weight" column
   uomRaw?: string;                       // Raw "U/M" column (first occurrence)
+  freightRaw?: number;                   // Raw "Freight" column (per-unit freight cost component from the PR file)
+  dutyRaw?: number;                      // Raw "Duty" column
+  brokerageRaw?: number;                 // Raw "Brokerage" column
+  insuranceRaw?: number;                 // Raw "Insurance" column
+  localFreightRaw?: number;              // Raw "Local Freight" column
 }
 
 export interface CustomFeeItem {
@@ -164,6 +170,14 @@ export interface ErrorFlag {
   category: "MOQ" | "MCQ" | "Container" | "Delay" | "Warehouse" | "General" | "Price";
   message: string;
   details?: string;
+  // Optional structured i18n keys + params so the UI can render a fully
+  // translated message/details in the active language, while `message`/
+  // `details` above remain as the English fallback (also used verbatim in
+  // Excel exports, which are always English regardless of UI language).
+  messageKey?: string;
+  messageParams?: Record<string, string | number>;
+  detailsKey?: string;
+  detailsParams?: Record<string, string | number>;
   // Populated for Price flags so the UI can offer an inline fix.
   itemCode?: string;
   colorCode?: string;
@@ -332,9 +346,18 @@ export interface ImportedFclQuote {
   containerSize: number; // 20 or 40
   shipFrom: string;      // e.g. "Taiwan Keelung"
   expenseType: string;   // "FREIGHT", "LOCAL", "BROKERAGE", "EXWORK"
-  paymentType: string;   // "BY CONTAINER", "BY SHIPMENT"
+  paymentType: string;   // "BY CONTAINER", "BY SHIPMENT", "BY CBM", "BY CBM (TIERED)"
   amount: number;
   currency: string;
+  // Populated when the source "Payment Type" cell was a tiered bracket like
+  // "BY CBM (1-4)" or "BY CBM (11-14)" — a flat fee that applies only when
+  // the shipment's total CBM falls within [cbmTierMin, cbmTierMax], NOT a
+  // per-CBM rate to multiply and NOT additive with the other tiers. A plain
+  // "BY CBM" row (no range in the source) has both left undefined and is
+  // treated as a genuine linear per-CBM rate, typically covering volumes
+  // above the highest defined tier.
+  cbmTierMin?: number;
+  cbmTierMax?: number;
 }
 
 export interface IncotermRule {

@@ -2,7 +2,25 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { alignBasePoDueDateToLoadingRules, processScenario } from "./optimizer";
 import { getDefaultLoadingDateRules } from "./defaultLoadingDates";
+import { loadSamplePrEntries } from "./data";
 import { PrEntry, ScenarioDef } from "./types";
+
+test("the built-in sample data sets shipFrom and mcq on every entry, so it exercises the same logic as a real manual upload", () => {
+  const entries = loadSamplePrEntries();
+  assert.ok(entries.length > 0, "sample data should not be empty");
+
+  const missingShipFrom = entries.filter(e => !e.shipFrom || e.shipFrom.trim() === "");
+  assert.equal(
+    missingShipFrom.length, 0,
+    `every sample entry must have shipFrom set (e.g. "Taiwan Keelung") — otherwise the Taiwan Keelung-specific loading-day (Tue/Fri) and transit-time logic silently falls back to the generic default, causing the sample loader to behave differently from a real manual upload. Missing on: ${missingShipFrom.map(e => e.id).join(", ")}`
+  );
+
+  const missingMcq = entries.filter(e => !e.mcq || e.mcq <= 0);
+  assert.equal(
+    missingMcq.length, 0,
+    `every sample entry must have mcq set — otherwise it silently falls back to the app's global default MCQ instead of this dataset's own documented threshold. Missing on: ${missingMcq.map(e => e.id).join(", ")}`
+  );
+});
 
 test("shipment quantity rounding is not thrown off by floating-point summation noise", () => {
   const d = (day: number) => new Date(2026, 0, day); // January 2026
@@ -18,7 +36,6 @@ test("shipment quantity rounding is not thrown off by floating-point summation n
     prDueDate: d(6),
     dueDateRaw: d(6),
     cbm: qty * 0.003,
-    cbmPerUnit: 0.003,
     moq: 1,
     mcq: 0,
     shipFrom: "Taiwan Keelung",
@@ -111,7 +128,6 @@ test("a shipment whose quantity is already a whole number is not pulled down by 
     prDueDate: d(6),
     dueDateRaw: d(6),
     cbm: qty * 0.003,
-    cbmPerUnit: 0.003,
     moq: 1,
     mcq: 0,
     shipFrom: "Taiwan Keelung",
@@ -201,7 +217,6 @@ test("per-PR Transit Lead Time and Consolidate Weekday override the shipFrom-bas
     prDueDate: d(7),
     dueDateRaw: d(7),
     cbm: 1.5,
-    cbmPerUnit: 0.003,
     moq: 1,
     mcq: 0,
     shipFrom: "Taiwan Keelung",
@@ -297,7 +312,6 @@ test("MCQ pull-forward only combines quantity when doing so is actually cheaper 
     prDueDate: dueDateRaw,
     dueDateRaw,
     cbm: qty * 0.003,
-    cbmPerUnit: 0.003,
     moq: 1,
     mcq: 0,
     shipFrom: "Taiwan Keelung",
@@ -367,6 +381,7 @@ test("MCQ pull-forward only combines quantity when doing so is actually cheaper 
 
   assert.equal(red!.assignedWeek, 1, "cheap-to-combine RED quantity should be pulled forward into week 1");
   assert.equal(blue!.assignedWeek, 2, "expensive-to-combine BLUE quantity should stay in week 2 and pay the surcharge instead");
+  assert.equal(red!.naturalAssignedWeek, 2, "RED's naturalAssignedWeek should still reflect its pre-pull-forward shipment (week 2), even though it was moved to week 1");
 
   const blueAlert = result.moqAlerts.find(a => a.colorCode === "BLUE");
   assert.ok(blueAlert, "BLUE should have a surcharge alert");
@@ -388,7 +403,6 @@ test("a PR with slack catches a ride on a later already-scheduled shipment, with
     unitPrice: 5,
     prDueDate,
     cbm: qty * 0.003,
-    cbmPerUnit: 0.003,
     moq: 1,
     mcq: 1,
     shipFrom: "Taiwan Keelung",

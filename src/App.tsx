@@ -10,7 +10,6 @@ import { processAllScenarios, getDefaultRouteQuotes, calculateFleetScenarios } f
 import { getDefaultImportedFclQuotes } from "./defaultFclQuotes";
 import { getDefaultIncotermRules } from "./defaultIncoterms";
 import { getDefaultLoadingDateRules } from "./defaultLoadingDates";
-import { loadSamplePrEntries } from "./data";
 import { Info, HelpCircle, FileSpreadsheet, Layers, BarChart, CheckCircle2, Sliders, BarChart3, Ship } from "lucide-react";
 import { Language, t } from "./utils/translate";
 
@@ -568,12 +567,23 @@ export default function App() {
   // Set default selected scenario on data load
   const handleDataLoaded = (newEntries: PrEntry[]) => {
     setEntries(newEntries);
+
+    // Unconditionally reset all Part 4 (review warning) adjustments and overrides on new file upload
     setSelectedScenarioId("1"); // Reset selector
-    // Clear any manual shipment date overrides from a previous upload —
-    // they're specific to that dataset's own groups/gaps and would
-    // otherwise incorrectly override the newly-uploaded file's dates.
     setShipmentDates([]);
+    setExcessOverrides([]);
+    setManualWeekOverrides({});
+    setManualMatrixQtyOverrides({});
+    setMcqMoqPreferences({});
     setUnitPriceOverrides({});
+    setAcceptedFlags({});
+
+    // Clear associated localStorage overrides to start completely fresh
+    localStorage.removeItem("procurement_manual_week_overrides_v4");
+    localStorage.removeItem("procurement_manual_matrix_qty_overrides_v1");
+    localStorage.removeItem("procurement_mcq_moq_preferences_v1");
+    localStorage.removeItem("procurement_unit_price_overrides_v1");
+    localStorage.removeItem("procurement_accepted_flags_v1");
 
     // Auto-detect settings from the uploaded entries if available
     if (newEntries.length > 0) {
@@ -748,9 +758,9 @@ export default function App() {
                   <div ref={uploadRef} className="space-y-6">
                     <PrUploader onDataLoaded={handleDataLoaded} currentCount={entries.length} lang={lang} />
                     <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                      <h3 className="text-sm font-bold text-slate-800 mb-2">Inbound Manifest Status</h3>
+                      <h3 className="text-sm font-bold text-slate-800 mb-2">{t("Inbound Manifest Status", lang)}</h3>
                       <p className="text-slate-500 text-xs">
-                        You have successfully loaded <span className="font-bold text-slate-800">{entries.length} PR lines</span> from your Syteline procurement sheet. You can use the sidebar or click below to configure logistics rates & custom route quotes.
+                        {t("You have successfully loaded", lang)} <span className="font-bold text-slate-800">{entries.length} {t("PR lines", lang)}</span> {t("from your Syteline procurement sheet. You can use the sidebar or click below to configure logistics rates & custom route quotes.", lang)}
                       </p>
                       <button
                         onClick={() => setActiveStep(1)}

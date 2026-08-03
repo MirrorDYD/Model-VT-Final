@@ -11,9 +11,9 @@ const translations: Record<string, Record<Language, string>> = {
     EN: "Sourcing Optimization Engine",
     TH: "ระบบคำนวณและวางแผนจัดส่ง"
   },
-  "Multi-Scenario Slicing, Container Optimization, Cumulative Rounding & MCQ Push-back Decision Support Dashboard": {
-    EN: "Multi-Scenario Slicing, Container Optimization, Cumulative Rounding & MCQ Push-back Decision Support Dashboard",
-    TH: "แดชบอร์ดสนับสนุนการตัดสินใจ: การแยกกลุ่มสถานการณ์, การเพิ่มประสิทธิภาพตู้คอนเทนเนอร์, การปัดเศษสะสม และการเลื่อนกำหนดการเพื่อรับ MCQ"
+  "Multi-Scenario Slicing, Container Optimization, Cumulative Rounding & MOQ Push-back Decision Support Dashboard": {
+    EN: "Multi-Scenario Slicing, Container Optimization, Cumulative Rounding & MOQ Push-back Decision Support Dashboard",
+    TH: "แดชบอร์ดสนับสนุนการตัดสินใจ: การแยกกลุ่มสถานการณ์, การเพิ่มประสิทธิภาพตู้คอนเทนเนอร์, การปัดเศษสะสม และการเลื่อนกำหนดการเพื่อรับ MOQ"
   },
   "Time": {
     EN: "Time",
@@ -289,6 +289,14 @@ const translations: Record<string, Record<Language, string>> = {
     EN: "MCQ Shipment Calendar Matrix",
     TH: "ตารางสรุปเกณฑ์ขั้นต่ำ MCQ ประจำแต่ละรอบจัดส่ง"
   },
+  "Item Description (Optional)": {
+    EN: "Item Description (Optional)",
+    TH: "รายละเอียดสินค้า (ไม่บังคับ)"
+  },
+  "Shipment": {
+    EN: "Shipment",
+    TH: "ชิปเมนต์"
+  },
   "Shipment Containers & Bins": {
     EN: "Shipment Containers & Bins",
     TH: "ตู้คอนเทนเนอร์และรอบจัดส่งรายสัปดาห์"
@@ -534,13 +542,1087 @@ const translations: Record<string, Record<Language, string>> = {
     TH: "คงไว้เป็น 0"
   },
   "accept": {
-    EN: "accept",
+    EN: "Accept",
     TH: "ยอมรับ"
   },
   "pay for surcharge": {
     EN: "Pay For Surcharge",
     TH: "ชำระค่าธรรมเนียม surcharge"
-  }
+  },
+  "20ft Rent": {
+    EN: "20ft Rent",
+    TH: "ค่าเช่าตู้ 20 ฟุต"
+  },
+  "40HQ Rent": {
+    EN: "40HQ Rent",
+    TH: "ค่าเช่าตู้ 40HQ"
+  },
+  "40ft Rent": {
+    EN: "40ft Rent",
+    TH: "ค่าเช่าตู้ 40 ฟุต"
+  },
+  "ACTIVE": {
+    EN: "ACTIVE",
+    TH: "ใช้งานอยู่"
+  },
+  "Absolute Optimal Fleet Recommendation": {
+    EN: "Absolute Optimal Fleet Recommendation",
+    TH: "คำแนะนำฟลีทที่เหมาะสมที่สุด"
+  },
+  "Act as wildcards and apply to all items/colors/sizes under that customer/vendor.": {
+    EN: "Act as wildcards and apply to all items/colors/sizes under that customer/vendor.",
+    TH: "ทำหน้าที่เป็นไวลด์การ์ดและใช้กับสินค้า/สี/ไซส์ทั้งหมดภายใต้ลูกค้า/ผู้ขายรายนั้น"
+  },
+  "Action": {
+    EN: "Action",
+    TH: "การดำเนินการ"
+  },
+  "Active": {
+    EN: "Active",
+    TH: "ใช้งาน"
+  },
+  "Active Imported Quotes": {
+    EN: "Active Imported Quotes",
+    TH: "ใบเสนอราคาที่นำเข้าและใช้งานอยู่"
+  },
+  "Active Incoterm Rules": {
+    EN: "Active Incoterm Rules",
+    TH: "กฎ Incoterm ที่ใช้งานอยู่"
+  },
+  "Active Shipments": {
+    EN: "Active Shipments",
+    TH: "ชิปเมนต์ที่ใช้งานอยู่"
+  },
+  "Active Surcharge Rules": {
+    EN: "Active Surcharge Rules",
+    TH: "กฎค่าธรรมเนียมที่ใช้งานอยู่"
+  },
+  "Add Padding Override": {
+    EN: "Add Padding Override",
+    TH: "เพิ่มการปรับจำนวนพิเศษ (Padding)"
+  },
+  "Add Rule": {
+    EN: "Add Rule",
+    TH: "เพิ่มกฎ"
+  },
+  "Additional Qty (YD)": {
+    EN: "Additional Qty (YD)",
+    TH: "จำนวนเพิ่มเติม (หลา)"
+  },
+  "All Items under Color": {
+    EN: "All Items under Color",
+    TH: "สินค้าทั้งหมดในสีนี้"
+  },
+  "All Legs Total": {
+    EN: "All Legs Total",
+    TH: "รวมทุกเลกทั้งหมด"
+  },
+  "Amount": {
+    EN: "Amount",
+    TH: "จำนวนเงิน"
+  },
+  "Amount in THB": {
+    EN: "Amount in THB",
+    TH: "จำนวนเงิน (บาท)"
+  },
+  "Approved Container Match": {
+    EN: "Approved Container Match",
+    TH: "การจับคู่ตู้คอนเทนเนอร์ที่อนุมัติ"
+  },
+  "Auto / Under MCQ": {
+    EN: "Auto / Under MCQ",
+    TH: "อัตโนมัติ / ต่ำกว่า MCQ"
+  },
+  "Automatically pulls later PR entries forward into earlier shipments when a color is below MOQ/MCQ threshold, consolidating shipment lots and avoiding small-lot surcharges.": {
+    EN: "Automatically pulls later PR entries forward into earlier shipments when a color is below MOQ/MCQ threshold, consolidating shipment lots and avoiding small-lot surcharges.",
+    TH: "ดึงรายการ PR ในรอบถัดไปมาไว้ในชิปเมนต์ก่อนหน้าโดยอัตโนมัติ เมื่อสีนั้นมีจำนวนต่ำกว่าเกณฑ์ MOQ/MCQ เพื่อรวมล็อตการจัดส่งและหลีกเลี่ยงค่าธรรมเนียมล็อตเล็ก"
+  },
+  "Best Config": {
+    EN: "Best Config",
+    TH: "การตั้งค่าที่ดีที่สุด"
+  },
+  "Best Landed Cost": {
+    EN: "Best Landed Cost",
+    TH: "ต้นทุนนำเข้ารวมที่ดีที่สุด"
+  },
+  "Best Overall Price": {
+    EN: "Best Overall Price",
+    TH: "ราคารวมที่ดีที่สุด"
+  },
+  "Blank Fields": {
+    EN: "Blank Fields",
+    TH: "ช่องว่างเปล่า"
+  },
+  "Buy Rate On PR Date": {
+    EN: "Buy Rate On PR Date",
+    TH: "อัตราแลกเปลี่ยน ณ วันที่ PR"
+  },
+  "By Container": {
+    EN: "By Container",
+    TH: "ตามตู้คอนเทนเนอร์"
+  },
+  "By Shipment": {
+    EN: "By Shipment",
+    TH: "ตามชิปเมนต์"
+  },
+  "By default, shipment dates are dynamically calculated by grouping PRs into natural gaps, finding the earliest PR Due Date per group, subtracting transit time, and snapping backwards to the allowed Loading Departure Days. You can manually override the computed departure date for any specific shipment group below.": {
+    EN: "By default, shipment dates are dynamically calculated by grouping PRs into natural gaps, finding the earliest PR Due Date per group, subtracting transit time, and snapping backwards to the allowed Loading Departure Days. You can manually override the computed departure date for any specific shipment group below.",
+    TH: "โดยค่าเริ่มต้น วันที่จัดส่งจะถูกคำนวณแบบไดนามิกโดยการจัดกลุ่ม PR ตามช่องว่างตามธรรมชาติ หาวันครบกำหนด PR ที่เร็วที่สุดในแต่ละกลุ่ม หักลบเวลาขนส่ง แล้วปรับย้อนกลับไปยังวันออกเรือที่อนุญาต คุณสามารถแก้ไขวันออกเรือที่คำนวณได้ด้วยตนเองสำหรับกลุ่มชิปเมนต์ใดๆ ด้านล่าง"
+  },
+  "Capital Opportunity Cost": {
+    EN: "Capital Opportunity Cost",
+    TH: "ต้นทุนค่าเสียโอกาสของเงินทุน"
+  },
+  "Carrying & Capital": {
+    EN: "Carrying & Capital",
+    TH: "ต้นทุนถือครองและเงินทุน"
+  },
+  "Carrying & Opportunity": {
+    EN: "Carrying & Opportunity",
+    TH: "ต้นทุนถือครองและค่าเสียโอกาส"
+  },
+  "Cheapest": {
+    EN: "Cheapest",
+    TH: "ถูกที่สุด"
+  },
+  "Cheapest True Landed Cost": {
+    EN: "Cheapest True Landed Cost",
+    TH: "ต้นทุนนำเข้ารวมที่แท้จริงถูกที่สุด"
+  },
+  "Clarification:": {
+    EN: "Clarification:",
+    TH: "คำชี้แจง:"
+  },
+  "Clear All": {
+    EN: "Clear All",
+    TH: "ล้างทั้งหมด"
+  },
+  "Click any card for full details and surcharge breakdowns.": {
+    EN: "Click any card for full details and surcharge breakdowns.",
+    TH: "คลิกที่การ์ดใดก็ได้เพื่อดูรายละเอียดและรายการค่าธรรมเนียมทั้งหมด"
+  },
+  "Color / Item": {
+    EN: "Color / Item",
+    TH: "สี / สินค้า"
+  },
+  "Color Code": {
+    EN: "Color Code",
+    TH: "รหัสสี"
+  },
+  "Colour": {
+    EN: "Colour",
+    TH: "สี"
+  },
+  "Compare real-world shipping dates, container allocations, and volume profiles across all 2.1, 2.2, and 3.0 subscenarios.": {
+    EN: "Compare real-world shipping dates, container allocations, and volume profiles across all 2.1, 2.2, and 3.0 subscenarios.",
+    TH: "เปรียบเทียบวันจัดส่งจริง การจัดสรรตู้คอนเทนเนอร์ และปริมาณสินค้าในทุกสถานการณ์ย่อย 2.1, 2.2 และ 3.0"
+  },
+  "Configure dynamic surcharges for shipments based on your specific vendor agreements. Upload an Excel or CSV spreadsheet containing your surcharge structure, or configure individual rules manually. Rules are matched dynamically against items in each shipment based on the highest specificity score.": {
+    EN: "Configure dynamic surcharges for shipments based on your specific vendor agreements. Upload an Excel or CSV spreadsheet containing your surcharge structure, or configure individual rules manually. Rules are matched dynamically against items in each shipment based on the highest specificity score.",
+    TH: "ตั้งค่าค่าธรรมเนียมแบบไดนามิกสำหรับชิปเมนต์ตามข้อตกลงกับผู้ขายของคุณ อัปโหลดไฟล์ Excel หรือ CSV ที่มีโครงสร้างค่าธรรมเนียม หรือตั้งค่ากฎแต่ละรายการด้วยตนเอง ระบบจะจับคู่กฎกับสินค้าในแต่ละชิปเมนต์แบบไดนามิกตามคะแนนความเจาะจงสูงสุด"
+  },
+  "Configure holding costs and capital opportunity rates used to calculate true landed costs for early shipments.": {
+    EN: "Configure holding costs and capital opportunity rates used to calculate true landed costs for early shipments.",
+    TH: "ตั้งค่าต้นทุนการถือครองสินค้าและอัตราค่าเสียโอกาสของเงินทุน เพื่อใช้คำนวณต้นทุนนำเข้ารวมที่แท้จริงสำหรับชิปเมนต์ที่มาถึงก่อนกำหนด"
+  },
+  "Consolidated Material Value": {
+    EN: "Consolidated Material Value",
+    TH: "มูลค่าวัตถุดิบรวม"
+  },
+  "Container Bookings": {
+    EN: "Container Bookings",
+    TH: "การจองตู้คอนเทนเนอร์"
+  },
+  "Container Fleet Matrix & Optimization Engine": {
+    EN: "Container Fleet Matrix & Optimization Engine",
+    TH: "เครื่องมือคำนวณและเมทริกซ์ฟลีทตู้คอนเทนเนอร์"
+  },
+  "Container Mismatch": {
+    EN: "Container Mismatch",
+    TH: "ตู้คอนเทนเนอร์ไม่ตรงกัน"
+  },
+  "Container Size": {
+    EN: "Container Size",
+    TH: "ขนาดตู้คอนเทนเนอร์"
+  },
+  "Curr": {
+    EN: "Curr",
+    TH: "สกุลเงิน"
+  },
+  "Cust. Code": {
+    EN: "Cust. Code",
+    TH: "รหัสลูกค้า"
+  },
+  "Customs Brokerage (per leg)": {
+    EN: "Customs Brokerage (per leg)",
+    TH: "ค่าดำเนินพิธีการศุลกากร (ต่อเลก)"
+  },
+  "Daily Warehouse Rent Rates (THB / Day)": {
+    EN: "Daily Warehouse Rent Rates (THB / Day)",
+    TH: "อัตราค่าเช่าคลังสินค้ารายวัน (บาท/วัน)"
+  },
+  "Days Early (Shipment classification):": {
+    EN: "Days Early (Shipment classification):",
+    TH: "จำนวนวันล่วงหน้า (การจัดประเภทชิปเมนต์):"
+  },
+  "Default Color Minimum Color Quantity (MCQ)": {
+    EN: "Default Color Minimum Color Quantity (MCQ)",
+    TH: "จำนวนขั้นต่ำต่อสีเริ่มต้น (MCQ)"
+  },
+  "Default Minimum Order Quantity (MOQ)": {
+    EN: "Default Minimum Order Quantity (MOQ)",
+    TH: "จำนวนสั่งซื้อขั้นต่ำเริ่มต้น (MOQ)"
+  },
+  "Delayed containers accrue size-specific rent below daily.": {
+    EN: "Delayed containers accrue size-specific rent below daily.",
+    TH: "ตู้คอนเทนเนอร์ที่ล่าช้าจะมีค่าเช่าตามขนาดสะสมตามรายวันด้านล่าง"
+  },
+  "Detailed Breakdown": {
+    EN: "Detailed Breakdown",
+    TH: "รายละเอียดแบบละเอียด"
+  },
+  "Download Template": {
+    EN: "Download Template",
+    TH: "ดาวน์โหลดเทมเพลต"
+  },
+  "Download our official CSV spreadsheet template to structure your customer, vendor, and color surcharge rules perfectly before importing.": {
+    EN: "Download our official CSV spreadsheet template to structure your customer, vendor, and color surcharge rules perfectly before importing.",
+    TH: "ดาวน์โหลดเทมเพลตไฟล์ CSV อย่างเป็นทางการของเราเพื่อจัดโครงสร้างกฎค่าธรรมเนียมตามลูกค้า ผู้ขาย และสีให้ถูกต้องก่อนนำเข้า"
+  },
+  "Dynamic Surcharge Rules Engine": {
+    EN: "Dynamic Surcharge Rules Engine",
+    TH: "เครื่องมือกฎค่าธรรมเนียมแบบไดนามิก"
+  },
+  "Dynamically evaluate combinations of [40HQ, 40ft, 20ft, LCL] across multiple timing splits to find the absolute lowest cost.": {
+    EN: "Dynamically evaluate combinations of [40HQ, 40ft, 20ft, LCL] across multiple timing splits to find the absolute lowest cost.",
+    TH: "ประเมินการรวมกันของ [40HQ, 40ft, 20ft, LCL] แบบไดนามิกในหลายรูปแบบการแบ่งช่วงเวลา เพื่อหาต้นทุนที่ต่ำที่สุด"
+  },
+  "Enable MCQ Pull-Forward Optimization": {
+    EN: "Enable MCQ Pull-Forward Optimization",
+    TH: "เปิดใช้งานการเพิ่มประสิทธิภาพ MCQ Pull-Forward"
+  },
+  "Excel Format Requirements": {
+    EN: "Excel Format Requirements",
+    TH: "ข้อกำหนดรูปแบบไฟล์ Excel"
+  },
+  "Excess Propagation:": {
+    EN: "Excess Propagation:",
+    TH: "การกระจายส่วนเกิน:"
+  },
+  "Expense Type": {
+    EN: "Expense Type",
+    TH: "ประเภทค่าใช้จ่าย"
+  },
+  "Extracted from uploaded PR data (Buy Rate On PR Date)": {
+    EN: "Extracted from uploaded PR data (Buy Rate On PR Date)",
+    TH: "ดึงข้อมูลจากไฟล์ PR ที่อัปโหลด (อัตราแลกเปลี่ยน ณ วันที่ PR)"
+  },
+  "FCL & LCL Quotes Import & Tariffs:": {
+    EN: "FCL & LCL Quotes Import & Tariffs:",
+    TH: "การนำเข้าใบเสนอราคา FCL และ LCL และอัตราภาษี:"
+  },
+  "Financial & Inventory Holding Rates": {
+    EN: "Financial & Inventory Holding Rates",
+    TH: "อัตราต้นทุนทางการเงินและการถือครองสินค้าคงคลัง"
+  },
+  "Fleet Matrix Rules": {
+    EN: "Fleet Matrix Rules",
+    TH: "กฎเมทริกซ์ฟลีท"
+  },
+  "Freight Ocean Fee (per leg)": {
+    EN: "Freight Ocean Fee (per leg)",
+    TH: "ค่าระวางเรือ (ต่อเลก)"
+  },
+  "Global Exchange Rates (THB per Currency)": {
+    EN: "Global Exchange Rates (THB per Currency)",
+    TH: "อัตราแลกเปลี่ยนทั่วโลก (บาทต่อสกุลเงิน)"
+  },
+  "Import shipping quotes for all countries directly from an Excel sheet. The engine will automatically parse columns, convert foreign currencies to THB, and calculate precise landed costs.": {
+    EN: "Import shipping quotes for all countries directly from an Excel sheet. The engine will automatically parse columns, convert foreign currencies to THB, and calculate precise landed costs.",
+    TH: "นำเข้าใบเสนอราคาการขนส่งจากทุกประเทศโดยตรงจากไฟล์ Excel ระบบจะแยกวิเคราะห์คอลัมน์ แปลงสกุลเงินต่างประเทศเป็นบาท และคำนวณต้นทุนนำเข้ารวมอย่างแม่นยำโดยอัตโนมัติ"
+  },
+  "Incoterm": {
+    EN: "Incoterm",
+    TH: "Incoterm"
+  },
+  "Incoterm Mapping": {
+    EN: "Incoterm Mapping",
+    TH: "การแมป Incoterm"
+  },
+  "Incoterms": {
+    EN: "Incoterms",
+    TH: "Incoterms"
+  },
+  "Inject Order Padding Override": {
+    EN: "Inject Order Padding Override",
+    TH: "เพิ่มการปรับจำนวนคำสั่งซื้อพิเศษ"
+  },
+  "Inventory Carrying Penalty": {
+    EN: "Inventory Carrying Penalty",
+    TH: "ค่าปรับจากการถือครองสินค้าคงคลัง"
+  },
+  "LCL (< 19 CBM) Rent per CBM": {
+    EN: "LCL (< 19 CBM) Rent per CBM",
+    TH: "ค่าเช่า LCL (< 19 CBM) ต่อ CBM"
+  },
+  "Leg": {
+    EN: "Leg",
+    TH: "เลก"
+  },
+  "Leg Logistics Total": {
+    EN: "Leg Logistics Total",
+    TH: "รวมค่าโลจิสติกส์ต่อเลก"
+  },
+  "Legs": {
+    EN: "Legs",
+    TH: "เลก"
+  },
+  "Local Port Dues / THC (per leg)": {
+    EN: "Local Port Dues / THC (per leg)",
+    TH: "ค่าธรรมเนียมท่าเรือ / THC (ต่อเลก)"
+  },
+  "Logistics & Shipping Cost": {
+    EN: "Logistics & Shipping Cost",
+    TH: "ต้นทุนโลจิสติกส์และการขนส่ง"
+  },
+  "Logistics Fees": {
+    EN: "Logistics Fees",
+    TH: "ค่าธรรมเนียมโลจิสติกส์"
+  },
+  "Logistics Total:": {
+    EN: "Logistics Total:",
+    TH: "รวมโลจิสติกส์:"
+  },
+  "MCQ MCQ Surcharge": {
+    EN: "MCQ MCQ Surcharge",
+    TH: "ค่าธรรมเนียม MCQ"
+  },
+  "MCQ Pull-Forward Optimization": {
+    EN: "MCQ Pull-Forward Optimization",
+    TH: "การเพิ่มประสิทธิภาพ MCQ Pull-Forward"
+  },
+  "MOQ / MCQ Surcharge Sinks": {
+    EN: "MOQ / MCQ Surcharge Sinks",
+    TH: "จุดรวมค่าธรรมเนียม MOQ / MCQ"
+  },
+  "MOQ Penalty (MCQ Surcharge)": {
+    EN: "MOQ Penalty (MCQ Surcharge)",
+    TH: "ค่าปรับ MOQ (ค่าธรรมเนียม MCQ)"
+  },
+  "Map Vendor Codes and Origins to specific Incoterms (FOB, EXW, CIF, DDP, CFR, FCA). This mapping determines which parts of the shipping cost are paid by us versus the vendor, as explained in the reference table below:": {
+    EN: "Map Vendor Codes and Origins to specific Incoterms (FOB, EXW, CIF, DDP, CFR, FCA). This mapping determines which parts of the shipping cost are paid by us versus the vendor, as explained in the reference table below:",
+    TH: "แมปรหัสผู้ขายและแหล่งกำเนิดสินค้ากับ Incoterms ที่กำหนด (FOB, EXW, CIF, DDP, CFR, FCA) การแมปนี้จะกำหนดว่าต้นทุนการขนส่งส่วนใดที่เราเป็นผู้จ่ายเทียบกับผู้ขาย ตามที่อธิบายในตารางอ้างอิงด้านล่าง:"
+  },
+  "Matches all colors except BLACK.": {
+    EN: "Matches all colors except BLACK.",
+    TH: "จับคู่ทุกสียกเว้นสีดำ"
+  },
+  "Material Value": {
+    EN: "Material Value",
+    TH: "มูลค่าวัตถุดิบ"
+  },
+  "Max": {
+    EN: "Max",
+    TH: "สูงสุด"
+  },
+  "Min": {
+    EN: "Min",
+    TH: "ต่ำสุด"
+  },
+  "New": {
+    EN: "New",
+    TH: "ใหม่"
+  },
+  "New container rent exposure": {
+    EN: "New container rent exposure",
+    TH: "ค่าเช่าตู้คอนเทนเนอร์ใหม่ที่ต้องรับผิดชอบ"
+  },
+  "Newly subject to rent": {
+    EN: "Newly subject to rent",
+    TH: "เริ่มมีภาระค่าเช่าใหม่"
+  },
+  "No Items Scheduled": {
+    EN: "No Items Scheduled",
+    TH: "ไม่มีรายการที่กำหนดตาราง"
+  },
+  "No incoterm rules defined.": {
+    EN: "No incoterm rules defined.",
+    TH: "ยังไม่ได้กำหนดกฎ Incoterm"
+  },
+  "Option 1: Send all items in 1 shipment": {
+    EN: "Option 1: Send all items in 1 shipment",
+    TH: "ตัวเลือกที่ 1: ส่งสินค้าทั้งหมดในชิปเมนต์เดียว"
+  },
+  "Option 2: Divide into 2 shipments": {
+    EN: "Option 2: Divide into 2 shipments",
+    TH: "ตัวเลือกที่ 2: แบ่งเป็น 2 ชิปเมนต์"
+  },
+  "Option 3: Divide into 3 separate shipments": {
+    EN: "Option 3: Divide into 3 separate shipments",
+    TH: "ตัวเลือกที่ 3: แบ่งเป็น 3 ชิปเมนต์แยกกัน"
+  },
+  "Origin (Ship From)": {
+    EN: "Origin (Ship From)",
+    TH: "แหล่งกำเนิด (จัดส่งจาก)"
+  },
+  "Original Amount": {
+    EN: "Original Amount",
+    TH: "จำนวนเงินเดิม"
+  },
+  "Other colour": {
+    EN: "Other colour",
+    TH: "สีอื่น"
+  },
+  "Padded Qty": {
+    EN: "Padded Qty",
+    TH: "จำนวนที่เพิ่ม"
+  },
+  "Payment Type": {
+    EN: "Payment Type",
+    TH: "ประเภทการชำระเงิน"
+  },
+  "Port Delay (Days)": {
+    EN: "Port Delay (Days)",
+    TH: "ความล่าช้าที่ท่าเรือ (วัน)"
+  },
+  "Port Departure (ETD):": {
+    EN: "Port Departure (ETD):",
+    TH: "วันออกจากท่าเรือ (ETD):"
+  },
+  "Port Warehouse Storage Rent (per leg)": {
+    EN: "Port Warehouse Storage Rent (per leg)",
+    TH: "ค่าเช่าคลังสินค้าที่ท่าเรือ (ต่อเลก)"
+  },
+  "Price": {
+    EN: "Price",
+    TH: "ราคา"
+  },
+  "Qty/Amt": {
+    EN: "Qty/Amt",
+    TH: "จำนวน/มูลค่า"
+  },
+  "Range check (Min, Max)": {
+    EN: "Range check (Min, Max)",
+    TH: "ตรวจสอบช่วง (ต่ำสุด, สูงสุด)"
+  },
+  "Rates": {
+    EN: "Rates",
+    TH: "อัตรา"
+  },
+  "Rates automatically applied to foreign currency items & quotes": {
+    EN: "Rates automatically applied to foreign currency items & quotes",
+    TH: "อัตราที่ใช้กับรายการและใบเสนอราคาสกุลเงินต่างประเทศโดยอัตโนมัติ"
+  },
+  "Recommended Fleet Suggestion": {
+    EN: "Recommended Fleet Suggestion",
+    TH: "ข้อเสนอแนะฟลีทที่แนะนำ"
+  },
+  "Retrieved CBM per YD": {
+    EN: "Retrieved CBM per YD",
+    TH: "CBM ต่อหลาที่ดึงมา"
+  },
+  "Retrieved Unit Price": {
+    EN: "Retrieved Unit Price",
+    TH: "ราคาต่อหน่วยที่ดึงมา"
+  },
+  "SL Description": {
+    EN: "SL Description",
+    TH: "รายละเอียด SL"
+  },
+  "Sample": {
+    EN: "Sample",
+    TH: "ตัวอย่าง"
+  },
+  "Scenario Best": {
+    EN: "Scenario Best",
+    TH: "สถานการณ์ที่ดีที่สุด"
+  },
+  "Selected Schedule": {
+    EN: "Selected Schedule",
+    TH: "ตารางที่เลือก"
+  },
+  "Ship From": {
+    EN: "Ship From",
+    TH: "จัดส่งจาก"
+  },
+  "Shipment Departure Calendar & Container Booking Plan": {
+    EN: "Shipment Departure Calendar & Container Booking Plan",
+    TH: "ปฏิทินการออกเรือและแผนการจองตู้คอนเทนเนอร์"
+  },
+  "Size": {
+    EN: "Size",
+    TH: "ขนาด"
+  },
+  "Source": {
+    EN: "Source",
+    TH: "แหล่งที่มา"
+  },
+  "Sourced Qty:": {
+    EN: "Sourced Qty:",
+    TH: "จำนวนที่จัดหา:"
+  },
+  "Sourcing & Financial Costs": {
+    EN: "Sourcing & Financial Costs",
+    TH: "ต้นทุนการจัดซื้อและการเงิน"
+  },
+  "Surcharge Template": {
+    EN: "Surcharge Template",
+    TH: "เทมเพลตค่าธรรมเนียม"
+  },
+  "Surcharge Type": {
+    EN: "Surcharge Type",
+    TH: "ประเภทค่าธรรมเนียม"
+  },
+  "Surcharges": {
+    EN: "Surcharges",
+    TH: "ค่าธรรมเนียม"
+  },
+  "Surcharges are evaluated per shipment. Surcharges apply if the shipment volume/value falls within the [Min, Max] range.": {
+    EN: "Surcharges are evaluated per shipment. Surcharges apply if the shipment volume/value falls within the [Min, Max] range.",
+    TH: "ค่าธรรมเนียมจะถูกประเมินต่อชิปเมนต์ โดยจะมีผลหากปริมาณ/มูลค่าชิปเมนต์อยู่ในช่วง [ต่ำสุด, สูงสุด]"
+  },
+  "Syteline Arrival (ETA):": {
+    EN: "Syteline Arrival (ETA):",
+    TH: "วันถึง Syteline (ETA):"
+  },
+  "Syteline Subscenarios & Live Shipping Calendar": {
+    EN: "Syteline Subscenarios & Live Shipping Calendar",
+    TH: "สถานการณ์ย่อย Syteline และปฏิทินการขนส่งแบบสด"
+  },
+  "Target": {
+    EN: "Target",
+    TH: "เป้าหมาย"
+  },
+  "Target Shipment": {
+    EN: "Target Shipment",
+    TH: "ชิปเมนต์เป้าหมาย"
+  },
+  "Template": {
+    EN: "Template",
+    TH: "เทมเพลต"
+  },
+  "The Fleet Solver above explores hypothetical symmetrical splits. This calendar below displays the actual tactical schedules compiled from item-level production due dates, MOQ bounds, and pull-forwards.": {
+    EN: "The Fleet Solver above explores hypothetical symmetrical splits. This calendar below displays the actual tactical schedules compiled from item-level production due dates, MOQ bounds, and pull-forwards.",
+    TH: "เครื่องมือคำนวณฟลีทด้านบนจะสำรวจการแบ่งสมมาตรสมมติ ส่วนปฏิทินด้านล่างนี้แสดงตารางเชิงกลยุทธ์จริงที่รวบรวมจากวันครบกำหนดการผลิตระดับรายการสินค้า ขอบเขต MOQ และการเลื่อนล่วงหน้า"
+  },
+  "Three-Way Shipment Cost Comparison & Contrasting Overview": {
+    EN: "Three-Way Shipment Cost Comparison & Contrasting Overview",
+    TH: "ภาพรวมเปรียบเทียบต้นทุนการจัดส่งสามแนวทาง"
+  },
+  "Total Capacity": {
+    EN: "Total Capacity",
+    TH: "ความจุรวม"
+  },
+  "Total Landed Cost": {
+    EN: "Total Landed Cost",
+    TH: "ต้นทุนนำเข้ารวมทั้งหมด"
+  },
+  "Total Shipment Volume": {
+    EN: "Total Shipment Volume",
+    TH: "ปริมาณชิปเมนต์รวม"
+  },
+  "Total Sourcing Surcharges": {
+    EN: "Total Sourcing Surcharges",
+    TH: "ค่าธรรมเนียมการจัดซื้อรวม"
+  },
+  "Total Volume": {
+    EN: "Total Volume",
+    TH: "ปริมาณรวม"
+  },
+  "Total suggested containers": {
+    EN: "Total suggested containers",
+    TH: "จำนวนตู้คอนเทนเนอร์ที่แนะนำรวม"
+  },
+  "True Landed Cost Formula": {
+    EN: "True Landed Cost Formula",
+    TH: "สูตรต้นทุนนำเข้ารวมที่แท้จริง"
+  },
+  "VT Garment Logistics Optimization Workspace": {
+    EN: "VT Garment Logistics Optimization Workspace",
+    TH: "พื้นที่ทำงานเพิ่มประสิทธิภาพโลจิสติกส์ VT Garment"
+  },
+  "VT Planning Rules Summary": {
+    EN: "VT Planning Rules Summary",
+    TH: "สรุปกฎการวางแผน VT"
+  },
+  "Valid Fleet Permutations (Sorted by Landed Cost)": {
+    EN: "Valid Fleet Permutations (Sorted by Landed Cost)",
+    TH: "ชุดฟลีทที่เป็นไปได้ (เรียงตามต้นทุนนำเข้ารวม)"
+  },
+  "Validation Rules Mode: Standard": {
+    EN: "Validation Rules Mode: Standard",
+    TH: "โหมดกฎการตรวจสอบ: มาตรฐาน"
+  },
+  "Vendor Code": {
+    EN: "Vendor Code",
+    TH: "รหัสผู้ขาย"
+  },
+  "Volume Per Leg": {
+    EN: "Volume Per Leg",
+    TH: "ปริมาณต่อเลก"
+  },
+  "Week": {
+    EN: "Week",
+    TH: "สัปดาห์"
+  },
+  "When enabled, the optimizer automatically consolidates color rolls from later weeks into earlier shipments to resolve MOQ/MCQ gaps and eliminate surcharges.": {
+    EN: "When enabled, the optimizer automatically consolidates color rolls from later weeks into earlier shipments to resolve MOQ/MCQ gaps and eliminate surcharges.",
+    TH: "เมื่อเปิดใช้งาน ระบบจะรวมม้วนผ้าตามสีจากสัปดาห์ถัดไปเข้ากับชิปเมนต์ก่อนหน้าโดยอัตโนมัติ เพื่อแก้ไขช่องว่าง MOQ/MCQ และขจัดค่าธรรมเนียม"
+  },
+  "Your Excel file must contain these exact headers:": {
+    EN: "Your Excel file must contain these exact headers:",
+    TH: "ไฟล์ Excel ของคุณต้องมีหัวคอลัมน์ตรงตามนี้:"
+  },
+  "container-days": {
+    EN: "container-days",
+    TH: "ตู้-วัน"
+  },
+  "leg": {
+    EN: "leg",
+    TH: "เลก"
+  },
+  "legs": {
+    EN: "legs",
+    TH: "เลก"
+  },
+  "rounds the first shipment UP, then propagates excess forward to round subsequent shipments up or down.": {
+    EN: "rounds the first shipment UP, then propagates excess forward to round subsequent shipments up or down.",
+    TH: "ปัดชิปเมนต์แรกขึ้น แล้วกระจายส่วนเกินไปยังชิปเมนต์ถัดไปเพื่อปัดขึ้นหรือลง"
+  },
+  "shipments": {
+    EN: "shipments",
+    TH: "ชิปเมนต์"
+  },
+  "• Baseline: the earliest PR Due Date sets the base PO Due Date, shifted backward to the nearest allowed vendor loading day.": {
+    EN: "• Baseline: the earliest PR Due Date sets the base PO Due Date, shifted backward to the nearest allowed vendor loading day.",
+    TH: "• พื้นฐาน: วันครบกำหนด PR ที่เร็วที่สุดจะกำหนดวันครบกำหนด PO พื้นฐาน โดยปรับย้อนกลับไปยังวันที่อนุญาตให้โหลดสินค้าของผู้ขายที่ใกล้ที่สุด"
+  },
+  "• Each shipment's PO Due Date is its group's earliest PR Due Date, aligned backward to the nearest allowed loading day.": {
+    EN: "• Each shipment's PO Due Date is its group's earliest PR Due Date, aligned backward to the nearest allowed loading day.",
+    TH: "• วันครบกำหนด PO ของแต่ละชิปเมนต์คือวันครบกำหนด PR ที่เร็วที่สุดของกลุ่มนั้น โดยปรับย้อนกลับไปยังวันที่อนุญาตให้โหลดสินค้าที่ใกล้ที่สุด"
+  },
+  "• Grouping: sorted Days Early values are clustered dynamically — each group spans a rolling 7-day window from its own start date, not fixed weekly buckets.": {
+    EN: "• Grouping: sorted Days Early values are clustered dynamically — each group spans a rolling 7-day window from its own start date, not fixed weekly buckets.",
+    TH: "• การจัดกลุ่ม: ค่าจำนวนวันล่วงหน้าที่เรียงลำดับแล้วจะถูกจัดกลุ่มแบบไดนามิก โดยแต่ละกลุ่มครอบคลุมช่วง 7 วันแบบต่อเนื่องจากวันเริ่มต้นของตัวเอง ไม่ใช่ช่วงสัปดาห์คงที่"
+  },
+  "• Scenario count: the number of groups sets the maximum number of shipments (e.g. 15 groups → Scenarios 1–15).": {
+    EN: "• Scenario count: the number of groups sets the maximum number of shipments (e.g. 15 groups → Scenarios 1–15).",
+    TH: "• จำนวนสถานการณ์: จำนวนกลุ่มจะกำหนดจำนวนชิปเมนต์สูงสุด (เช่น 15 กลุ่ม → สถานการณ์ 1–15)"
+  },
+  "• Splitting: Scenario N splits at the N-1 largest gaps between groups; equal-sized gaps produce numbered variants (e.g. 2.1, 2.2).": {
+    EN: "• Splitting: Scenario N splits at the N-1 largest gaps between groups; equal-sized gaps produce numbered variants (e.g. 2.1, 2.2).",
+    TH: "• การแบ่ง: สถานการณ์ที่ N จะแบ่งที่ช่องว่างระหว่างกลุ่มที่มากที่สุด N-1 ช่อง ช่องว่างที่มีขนาดเท่ากันจะสร้างรูปแบบย่อย (เช่น 2.1, 2.2)"
+  },
+
+  // Dynamically-generated Error/Warning/Info flag templates (optimizer.ts).
+  // Rendered with tp() using {placeholder} substitution — see messageKey/
+  // messageParams and detailsKey/detailsParams on ErrorFlag.
+  "flag.zeroPrice.message": {
+    EN: "{itemCode} / {colorCode} has a Unit Price of $0.00",
+    TH: "{itemCode} / {colorCode} มีราคาต่อหน่วยเท่ากับ $0.00"
+  },
+  "flag.zeroPrice.details": {
+    EN: "This is likely a data entry error in the uploaded PR file. Landed cost, carrying cost, and opportunity cost for this item will be understated until corrected.",
+    TH: "นี่อาจเป็นความผิดพลาดในการกรอกข้อมูลในไฟล์ PR ที่อัปโหลด ต้นทุนนำเข้ารวม ต้นทุนถือครอง และต้นทุนค่าเสียโอกาสของสินค้านี้จะต่ำกว่าความเป็นจริงจนกว่าจะได้รับการแก้ไข"
+  },
+  "flag.lclSameDay.message": {
+    EN: "Total volume is below 19 CBM ({cbm} CBM).",
+    TH: "ปริมาณรวมต่ำกว่า 19 CBM ({cbm} CBM)"
+  },
+  "flag.lclSameDay.details": {
+    EN: "Optimized for LCL shipping: All items consolidated into a single shipment on the same day (Scenario 1) to minimize transport & handling costs.",
+    TH: "ปรับให้เหมาะสมสำหรับการขนส่งแบบ LCL: รวมสินค้าทั้งหมดเป็นชิปเมนต์เดียวในวันเดียวกัน (สถานการณ์ที่ 1) เพื่อลดต้นทุนการขนส่งและการจัดการ"
+  },
+  "flag.containerOverloaded.message": {
+    EN: "Shipment Week {week} is overloaded!",
+    TH: "ชิปเมนต์สัปดาห์ที่ {week} มีน้ำหนัก/ปริมาตรเกิน!"
+  },
+  "flag.containerOverloaded.details": {
+    EN: "CBM is {cbm} which exceeds the capacity of {capacity} CBM.",
+    TH: "ปริมาตรอยู่ที่ {cbm} CBM ซึ่งเกินความจุ {capacity} CBM"
+  },
+  "flag.containerCloseToLimit.message": {
+    EN: "Shipment Week {week} is close to container limit.",
+    TH: "ชิปเมนต์สัปดาห์ที่ {week} ใกล้ถึงขีดจำกัดของตู้คอนเทนเนอร์"
+  },
+  "flag.containerCloseToLimit.details": {
+    EN: "Over capacity by {excessCbm} CBM, within the 2.1 CBM tolerance.",
+    TH: "เกินความจุ {excessCbm} CBM ซึ่งอยู่ในเกณฑ์ผ่อนผัน 2.1 CBM"
+  },
+  "flag.lateArrival.message": {
+    EN: "Line {id} arrives LATE by {days} days!",
+    TH: "รายการ {id} มาถึงล่าช้า {days} วัน!"
+  },
+  "flag.lateArrival.details": {
+    EN: "PR Due Date: {prDate}, PO Due Date: {poDate}.",
+    TH: "วันครบกำหนด PR: {prDate}, วันครบกำหนด PO: {poDate}"
+  },
+  "flag.mcqConflict.message": {
+    EN: "MCQ Conflict for {color} ({vendor}): PR File is {prFileValue} YD vs Surcharge Rule is {surchargeValue} YD",
+    TH: "ความขัดแย้งของ MCQ สำหรับ {color} ({vendor}): ไฟล์ PR ระบุ {prFileValue} หลา เทียบกับกฎค่าธรรมเนียมที่ระบุ {surchargeValue} หลา"
+  },
+  "flag.moqConflict.message": {
+    EN: "MOQ Conflict for {vendor}: PR File is {prFileValue} YD vs Surcharge Rule is {surchargeValue} YD",
+    TH: "ความขัดแย้งของ MOQ สำหรับ {vendor}: ไฟล์ PR ระบุ {prFileValue} หลา เทียบกับกฎค่าธรรมเนียมที่ระบุ {surchargeValue} หลา"
+  },
+  "flag.conflict.details.prFile": {
+    EN: "Currently applying PR File ({value} YD). Priority defaults to Surcharge Rules unless overridden.",
+    TH: "ขณะนี้ใช้ค่าจากไฟล์ PR ({value} หลา) โดยค่าเริ่มต้นจะให้ความสำคัญกับกฎค่าธรรมเนียมก่อน เว้นแต่จะถูกแทนที่"
+  },
+  "flag.conflict.details.surchargeRule": {
+    EN: "Currently applying Surcharge Rule ({value} YD). Priority defaults to Surcharge Rules unless overridden.",
+    TH: "ขณะนี้ใช้ค่าจากกฎค่าธรรมเนียม ({value} หลา) โดยค่าเริ่มต้นจะให้ความสำคัญกับกฎค่าธรรมเนียมก่อน เว้นแต่จะถูกแทนที่"
+  },
+  "flag.underMcq.message": {
+    EN: "{color} is under MCQ ({qty}/{mcq} YD) on Shipment Date {date}",
+    TH: "{color} ต่ำกว่า MCQ ({qty}/{mcq} หลา) ในวันจัดส่ง {date}"
+  },
+  "flag.underMcq.details": {
+    EN: "Incurred MCQ penalty surcharge.",
+    TH: "เกิดค่าธรรมเนียมปรับจาก MCQ"
+  },
+  "flag.orderUnderMoq.message": {
+    EN: "Order total is under MOQ ({qty}/{moq} YD)",
+    TH: "ยอดสั่งซื้อรวมต่ำกว่า MOQ ({qty}/{moq} หลา)"
+  },
+  "flag.orderUnderMoq.details": {
+    EN: "The entire order is below the minimum order quantity requirement of {moq} YD. Total MOQ/MCQ surcharge incurred: {usd} USD ({thb} THB).",
+    TH: "คำสั่งซื้อทั้งหมดต่ำกว่าจำนวนสั่งซื้อขั้นต่ำที่กำหนดไว้ {moq} หลา ค่าธรรมเนียม MOQ/MCQ รวมที่เกิดขึ้น: {usd} ดอลลาร์สหรัฐ ({thb} บาท)"
+  },
+  "flag.shipmentUnderMoq.message": {
+    EN: "Shipment {week} total is under MOQ ({qty}/{moq} YD) on Shipment Date {date}",
+    TH: "ยอดรวมชิปเมนต์ที่ {week} ต่ำกว่า MOQ ({qty}/{moq} หลา) ในวันจัดส่ง {date}"
+  },
+  "flag.shipmentUnderMoq.details": {
+    EN: "This shipment alone falls short of the minimum order quantity requirement of {moq} YD.",
+    TH: "ชิปเมนต์นี้มีจำนวนต่ำกว่าจำนวนสั่งซื้อขั้นต่ำที่กำหนดไว้ {moq} หลา"
+  },
+  "Per-Shipment MOQ Status": {
+    EN: "Per-Shipment MOQ Status",
+    TH: "สถานะ MOQ รายชิปเมนต์"
+  },
+  "MOQ Met": {
+    EN: "MOQ Met",
+    TH: "ผ่านเกณฑ์ MOQ"
+  },
+  "MOQ Not Met": {
+    EN: "MOQ Not Met",
+    TH: "ไม่ผ่านเกณฑ์ MOQ"
+  },
+  "MOQ Target Achieved": {
+    EN: "MOQ Target Achieved",
+    TH: "บรรลุเป้าหมาย MOQ"
+  },
+  "MOQ Target Not Met": {
+    EN: "MOQ Target Not Met",
+    TH: "ไม่บรรลุเป้าหมาย MOQ"
+  },
+  "Shipment MOQ Ratio": {
+    EN: "Shipment MOQ Ratio",
+    TH: "สัดส่วน MOQ ของชิปเมนต์"
+  },
+  "flag.shipmentMoqMetDetail": {
+    EN: "This shipment is fully compliant with the minimum order quantity requirement (Target: {moq} YD, Actual: {qty} YD).",
+    TH: "ชิปเมนต์นี้เป็นไปตามข้อกำหนดจำนวนสั่งซื้อขั้นต่ำ (เป้าหมาย: {moq} หลา, จำนวนจริง: {qty} หลา)"
+  },
+  "flag.shipmentMoqShortDetail": {
+    EN: "This shipment falls short of the required minimum order quantity of {moq} YD by {shortfall} YD.",
+    TH: "ชิปเมนต์นี้มีจำนวนต่ำกว่าจำนวนสั่งซื้อขั้นต่ำที่กำหนดไว้ {moq} หลา อยู่ {shortfall} หลา"
+  },
+  "flag.warehouseDelay.message": {
+    EN: "Containers delayed by {days} days in Port Warehouse.",
+    TH: "ตู้คอนเทนเนอร์ล่าช้าที่คลังสินค้าท่าเรือ {days} วัน"
+  },
+  "flag.warehouseDelay.details": {
+    EN: "Incurred warehouse storage rent of {thb} THB.",
+    TH: "เกิดค่าเช่าคลังสินค้า {thb} บาท"
+  },
+  "flag.manualReview.message": {
+    EN: "Requires manual review! Container configuration exceeds elastic capacity limit.",
+    TH: "ต้องตรวจสอบด้วยตนเอง! การจัดตู้คอนเทนเนอร์เกินขีดจำกัดความยืดหยุ่นที่กำหนด"
+  },
+
+  // Static UI strings — Deep-Dive Inspector panel
+  "Deep-Dive Inspector": {
+    EN: "Deep-Dive Inspector",
+    TH: "แผงตรวจสอบเชิงลึก"
+  },
+  "flag.analyzingShipments": {
+    EN: "Analyzing {count} shipments, cumulative rounding excess, and MCQ thresholds.",
+    TH: "วิเคราะห์ {count} ชิปเมนต์ ส่วนเกินจากการปัดเศษสะสม และเกณฑ์ MCQ"
+  },
+  "Reset Assignments": {
+    EN: "Reset Assignments",
+    TH: "รีเซ็ตการกำหนดค่า"
+  },
+  "Reset manual shipment date assignments back to defaults": {
+    EN: "Reset manual shipment date assignments back to defaults",
+    TH: "รีเซ็ตวันที่จัดส่งที่กำหนดเองกลับเป็นค่าเริ่มต้น"
+  },
+  "Download Combined Excel Report": {
+    EN: "Download Combined Excel Report",
+    TH: "ดาวน์โหลดรายงาน Excel แบบรวม"
+  },
+  "One workbook with every shipment's PR lines, ordered by PO Delivery Date": {
+    EN: "One workbook with every shipment's PR lines, ordered by PO Delivery Date",
+    TH: "ไฟล์ Excel เดียวที่รวมรายการ PR ของทุกชิปเมนต์ เรียงตามวันที่ส่งมอบ PO"
+  },
+  "Download Separated Excel Report": {
+    EN: "Download Separated Excel Report",
+    TH: "ดาวน์โหลดรายงาน Excel แบบแยก"
+  },
+  "Zipping…": {
+    EN: "Zipping…",
+    TH: "กำลังบีบอัดไฟล์…"
+  },
+  "A ZIP with one workbook per shipment (named by PO Delivery Date), listing that shipment's PR Num / PR Line": {
+    EN: "A ZIP with one workbook per shipment (named by PO Delivery Date), listing that shipment's PR Num / PR Line",
+    TH: "ไฟล์ ZIP ที่มี Excel แยกไฟล์ต่อชิปเมนต์ (ตั้งชื่อตามวันที่ส่งมอบ PO) พร้อมรายการเลข PR / บรรทัด PR ของชิปเมนต์นั้น"
+  },
+  "Container Check: Approved": {
+    EN: "Container Check: Approved",
+    TH: "ตรวจสอบตู้คอนเทนเนอร์: อนุมัติแล้ว"
+  },
+  "Container Check: Manual Review Required": {
+    EN: "Container Check: Manual Review Required",
+    TH: "ตรวจสอบตู้คอนเทนเนอร์: ต้องตรวจสอบด้วยตนเอง"
+  },
+  "Landed Logistics Flagged Events & Sanity Audits": {
+    EN: "Landed Logistics Flagged Events & Sanity Audits",
+    TH: "เหตุการณ์ที่ถูกตั้งค่าสถานะและการตรวจสอบความถูกต้องด้านโลจิสติกส์นำเข้า"
+  },
+  "New unit price": {
+    EN: "New unit price",
+    TH: "ราคาต่อหน่วยใหม่"
+  },
+  "Fix Price": {
+    EN: "Fix Price",
+    TH: "แก้ไขราคา"
+  },
+  "Interactive Shipment Planning:": {
+    EN: "Interactive Shipment Planning:",
+    TH: "การวางแผนชิปเมนต์แบบอินเทอร์แอกทีฟ:"
+  },
+  "Drag and drop any materials between shipment cards to reschedule them manually, or use the drop-down selector on each line. The logistics engine will instantly re-calculate ocean freight container packing, MCQ surcharges, carrying penalties, and total landed costs!": {
+    EN: "Drag and drop any materials between shipment cards to reschedule them manually, or use the drop-down selector on each line. The logistics engine will instantly re-calculate ocean freight container packing, MCQ surcharges, carrying penalties, and total landed costs!",
+    TH: "ลากและวางวัตถุดิบระหว่างการ์ดชิปเมนต์เพื่อเปลี่ยนกำหนดการด้วยตนเอง หรือใช้ตัวเลือกแบบดรอปดาวน์ในแต่ละบรรทัด ระบบจะคำนวณการจัดตู้คอนเทนเนอร์ ค่าธรรมเนียม MCQ ค่าปรับการถือครอง และต้นทุนนำเข้ารวมใหม่ทันที!"
+  },
+  "BROKERAGE (Clearance)": {
+    EN: "BROKERAGE (Clearance)",
+    TH: "ค่าธรรมเนียมพิธีการ (Brokerage)"
+  },
+  "Below is the official compiled Syteline Requisition schedule for": {
+    EN: "Below is the official compiled Syteline Requisition schedule for",
+    TH: "ด้านล่างคือตารางกำหนดการ Requisition ของ Syteline ที่รวบรวมอย่างเป็นทางการสำหรับ"
+  },
+  "Capital Opportunity Cost:": {
+    EN: "Capital Opportunity Cost:",
+    TH: "ต้นทุนค่าเสียโอกาสของเงินทุน:"
+  },
+  "Carrying Cost Penalty:": {
+    EN: "Carrying Cost Penalty:",
+    TH: "ค่าปรับต้นทุนถือครองสินค้า:"
+  },
+  "Color": {
+    EN: "Color",
+    TH: "สี"
+  },
+  "Color Description": {
+    EN: "Color Description",
+    TH: "รายละเอียดสี"
+  },
+  "Cost and Freight": {
+    EN: "Cost and Freight",
+    TH: "ค่าขนส่งและค่าระวางเรือ (Cost and Freight)"
+  },
+  "Cost, Insurance & Freight": {
+    EN: "Cost, Insurance & Freight",
+    TH: "ค่าสินค้า ประกันภัย และค่าระวางเรือ (Cost, Insurance & Freight)"
+  },
+  "Customs Brokerage Dues:": {
+    EN: "Customs Brokerage Dues:",
+    TH: "ค่าดำเนินพิธีการศุลกากร:"
+  },
+  "Data Parsing Error": {
+    EN: "Data Parsing Error",
+    TH: "ข้อผิดพลาดในการแยกวิเคราะห์ข้อมูล"
+  },
+  "Days Early": {
+    EN: "Days Early",
+    TH: "จำนวนวันล่วงหน้า"
+  },
+  "Delivered Duty Paid": {
+    EN: "Delivered Duty Paid",
+    TH: "ส่งมอบและชำระภาษีแล้ว (Delivered Duty Paid)"
+  },
+  "EXWORK (Origin Local)": {
+    EN: "EXWORK (Origin Local)",
+    TH: "EXWORK (ต้นทาง)"
+  },
+  "Ex Works": {
+    EN: "Ex Works",
+    TH: "Ex Works (ส่งมอบที่โรงงาน)"
+  },
+  "FREIGHT (Ocean)": {
+    EN: "FREIGHT (Ocean)",
+    TH: "FREIGHT (ค่าระวางเรือ)"
+  },
+  "Final Qty": {
+    EN: "Final Qty",
+    TH: "จำนวนสุดท้าย"
+  },
+  "Formula: (Shipment Value ÷ 2) × Carrying Rate × (Days Early / 365)": {
+    EN: "Formula: (Shipment Value ÷ 2) × Carrying Rate × (Days Early / 365)",
+    TH: "สูตร: (มูลค่าชิปเมนต์ ÷ 2) × อัตราต้นทุนถือครอง × (จำนวนวันล่วงหน้า / 365)"
+  },
+  "Formula: Shipment Value × [ (1 + Opportunity Rate)^(Days Early / 365) − 1 ]": {
+    EN: "Formula: Shipment Value × [ (1 + Opportunity Rate)^(Days Early / 365) − 1 ]",
+    TH: "สูตร: มูลค่าชิปเมนต์ × [ (1 + อัตราค่าเสียโอกาส)^(จำนวนวันล่วงหน้า / 365) − 1 ]"
+  },
+  "Free Carrier": {
+    EN: "Free Carrier",
+    TH: "Free Carrier (ส่งมอบผู้ขนส่ง)"
+  },
+  "Free On Board": {
+    EN: "Free On Board",
+    TH: "Free On Board (ส่งมอบบนเรือ)"
+  },
+  "In keeping with Syteline standards, we output the Requisition and Line columns mapped alongside their optimized quantities and delivery structures.": {
+    EN: "In keeping with Syteline standards, we output the Requisition and Line columns mapped alongside their optimized quantities and delivery structures.",
+    TH: "เพื่อให้สอดคล้องกับมาตรฐาน Syteline เราแสดงคอลัมน์ Requisition และ Line ควบคู่กับจำนวนที่ปรับให้เหมาะสมและโครงสร้างการส่งมอบ"
+  },
+  "Inbound Manifest Status": {
+    EN: "Inbound Manifest Status",
+    TH: "สถานะไฟล์ PR ขาเข้า"
+  },
+  "Item Code": {
+    EN: "Item Code",
+    TH: "รหัสสินค้า"
+  },
+  "Item Description": {
+    EN: "Item Description",
+    TH: "รายละเอียดสินค้า"
+  },
+  "LOCAL (Dest. Local)": {
+    EN: "LOCAL (Dest. Local)",
+    TH: "LOCAL (ปลายทาง)"
+  },
+  "Line No.": {
+    EN: "Line No.",
+    TH: "บรรทัดที่"
+  },
+  "Local Port Dues & Delivery:": {
+    EN: "Local Port Dues & Delivery:",
+    TH: "ค่าธรรมเนียมท่าเรือปลายทางและการจัดส่ง:"
+  },
+  "MCQ Limit": {
+    EN: "MCQ Limit",
+    TH: "ขั้นต่ำ MCQ"
+  },
+  "No colors available": {
+    EN: "No colors available",
+    TH: "ไม่มีสีให้เลือก"
+  },
+  "Ocean Freight Tariff:": {
+    EN: "Ocean Freight Tariff:",
+    TH: "ค่าระวางเรือ:"
+  },
+  "Official Requisition Mapping Worksheet:": {
+    EN: "Official Requisition Mapping Worksheet:",
+    TH: "เอกสารแมปข้อมูล Requisition อย่างเป็นทางการ:"
+  },
+  "Opportunity Rate = WACC %": {
+    EN: "Opportunity Rate = WACC %",
+    TH: "อัตราค่าเสียโอกาส = ต้นทุนเงินทุนถัวเฉลี่ยถ่วงน้ำหนัก (WACC) %"
+  },
+  "Optimized Qty": {
+    EN: "Optimized Qty",
+    TH: "จำนวนที่ปรับให้เหมาะสม"
+  },
+  "Original Qty": {
+    EN: "Original Qty",
+    TH: "จำนวนเดิม"
+  },
+  "PO Delivery Date": {
+    EN: "PO Delivery Date",
+    TH: "วันที่ส่งมอบ PO"
+  },
+  "PO Due Date": {
+    EN: "PO Due Date",
+    TH: "วันครบกำหนด PO"
+  },
+  "PO Due Date (Arrival at VT)": {
+    EN: "PO Due Date (Arrival at VT)",
+    TH: "วันครบกำหนด PO (ถึง VT)"
+  },
+  "PR Delivery Date (Vendor Loading)": {
+    EN: "PR Delivery Date (Vendor Loading)",
+    TH: "วันที่ส่งมอบ PR (โหลดสินค้าที่ผู้ขาย)"
+  },
+  "PR Due Date": {
+    EN: "PR Due Date",
+    TH: "วันครบกำหนด PR"
+  },
+  "PR ID": {
+    EN: "PR ID",
+    TH: "เลขที่ PR"
+  },
+  "PR lines": {
+    EN: "PR lines",
+    TH: "รายการ PR"
+  },
+  "Requisition No.": {
+    EN: "Requisition No.",
+    TH: "เลขที่ Requisition"
+  },
+  "Rounding/MOQ Excess": {
+    EN: "Rounding/MOQ Excess",
+    TH: "ส่วนเกินจากการปัดเศษ/MOQ"
+  },
+  "Shipment Value = Material Cost + MOQ Excess Cost": {
+    EN: "Shipment Value = Material Cost + MOQ Excess Cost",
+    TH: "มูลค่าชิปเมนต์ = ต้นทุนวัตถุดิบ + ต้นทุนส่วนเกิน MOQ"
+  },
+  "Subtotal Cost:": {
+    EN: "Subtotal Cost:",
+    TH: "ยอดรวมย่อย:"
+  },
+  "Total CBM Volume": {
+    EN: "Total CBM Volume",
+    TH: "ปริมาตร CBM รวม"
+  },
+  "Total Material Cost": {
+    EN: "Total Material Cost",
+    TH: "ต้นทุนวัตถุดิบรวม"
+  },
+  "Total Ordered Quantity": {
+    EN: "Total Ordered Quantity",
+    TH: "จำนวนสั่งซื้อรวม"
+  },
+  "UOM": {
+    EN: "UOM",
+    TH: "หน่วยนับ"
+  },
+  "Vendor Pays": {
+    EN: "Vendor Pays",
+    TH: "ผู้ขายเป็นผู้จ่าย"
+  },
+  "We Pay (Buyer)": {
+    EN: "We Pay (Buyer)",
+    TH: "เราเป็นผู้จ่าย (ผู้ซื้อ)"
+  },
+  "You have successfully loaded": {
+    EN: "You have successfully loaded",
+    TH: "คุณโหลดข้อมูลสำเร็จแล้ว"
+  },
+  "from your Syteline procurement sheet. You can use the sidebar or click below to configure logistics rates & custom route quotes.": {
+    EN: "from your Syteline procurement sheet. You can use the sidebar or click below to configure logistics rates & custom route quotes.",
+    TH: "จากไฟล์จัดซื้อ Syteline ของคุณ คุณสามารถใช้แถบด้านข้างหรือคลิกด้านล่างเพื่อกำหนดค่าอัตราโลจิสติกส์และใบเสนอราคาเส้นทางที่กำหนดเอง"
+  },
+  "Loading…": {
+    EN: "Loading…",
+    TH: "กำลังโหลด…"
+  },
 };
 
 export function t(key: string, lang: Language): string {
@@ -548,4 +1630,17 @@ export function t(key: string, lang: Language): string {
     return translations[key][lang];
   }
   return key;
+}
+
+// Translate a template string with {placeholder} tokens, substituting values
+// from `params`. Falls back gracefully: missing params leave the token as-is
+// rather than throwing, and an unknown key falls back to the raw key (same
+// behavior as `t()`) before substitution is attempted.
+export function tp(key: string, params: Record<string, string | number> | undefined, lang: Language): string {
+  const template = t(key, lang);
+  if (!params) return template;
+  return template.replace(/\{(\w+)\}/g, (match, paramName) => {
+    const val = params[paramName];
+    return val !== undefined && val !== null ? String(val) : match;
+  });
 }

@@ -1,4 +1,4 @@
-import { Anchor, Calendar, Layers, Ship } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { Language, t } from "../utils/translate";
 
 interface HeaderProps {
@@ -37,9 +37,6 @@ export default function Header({ lang, setLang }: HeaderProps) {
     <header className="bg-white border-b border-slate-200 py-4 px-6 mb-8 shadow-sm">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-center gap-3.5 flex-1">
-          <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-100 text-blue-600">
-            <Ship size={24} />
-          </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-800 font-sans flex items-center gap-2">
               VT Garment <span className="text-blue-600 font-normal">{t("Sourcing Optimization Engine", lang)}</span>
@@ -75,7 +72,7 @@ export default function Header({ lang, setLang }: HeaderProps) {
             </button>
           </div>
 
-          <div className="flex flex-col items-start md:items-end">
+          <div className="flex flex-col items-start md:items-end col-span-1">
             <div className="bg-slate-50 border border-slate-200 px-3 py-1 rounded-full text-slate-600 text-xs font-mono flex items-center gap-1.5">
               <Calendar size={13} className="text-blue-500" />
               <span>{t("Time", lang)}: {currentDateStr} UTC</span>
@@ -83,14 +80,6 @@ export default function Header({ lang, setLang }: HeaderProps) {
             <div className="text-[10px] text-slate-500 font-sans font-medium px-2 mt-0.5">
               🇹🇭 {getThaiBuddhistDate()}
             </div>
-          </div>
-          <div className="bg-slate-50 border border-slate-200 px-3 py-1 rounded-full text-slate-600 text-xs font-mono flex items-center gap-1.5">
-            <Anchor size={13} className="text-emerald-600" />
-            <span>{t("Port: VT Garment (Inbound)", lang)}</span>
-          </div>
-          <div className="bg-blue-50 border border-blue-100 px-3 py-1 rounded-full text-blue-600 text-xs font-mono flex items-center gap-1.5 font-medium">
-            <Layers size={13} />
-            <span>{t("V3.2 Engine", lang)}</span>
           </div>
         </div>
       </div>

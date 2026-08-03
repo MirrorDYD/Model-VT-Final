@@ -87,6 +87,23 @@ export function getImportedFclCosts(
     return { freight: 0, local: 0, brokerage: 0, determinedIncoterm };
   }
 
+  // For CBM-tiered brokerage/local/etc. rate cards (e.g. "BY CBM (1-4)",
+  // "BY CBM (5-10)", "BY CBM (11-14)", plus a plain untiered "BY CBM" row
+  // as the catch-all for anything above the highest bracket), determine
+  // per expense type whether some defined bracket already covers this
+  // shipment's totalCbm. If so, the untiered fallback row must NOT also
+  // apply — it exists specifically for volumes that exceed every defined
+  // bracket, not as an additional charge layered on top of whichever
+  // bracket matched.
+  const tierCoveredExpenseTypes = new Set<string>();
+  matchingRows.forEach(row => {
+    if (row.paymentType === "BY CBM" && row.cbmTierMin !== undefined && row.cbmTierMax !== undefined) {
+      if (totalCbm >= row.cbmTierMin && totalCbm <= row.cbmTierMax) {
+        tierCoveredExpenseTypes.add((row.expenseType || "").toUpperCase().trim());
+      }
+    }
+  });
+
   matchingRows.forEach(row => {
     const expenseType = (row.expenseType || "").toUpperCase().trim();
     
@@ -116,6 +133,7 @@ export function getImportedFclCosts(
     const isSize40 = row.containerSize === 40;
 
     let multiplier = 0;
+    let skipRow = false;
     if (row.paymentType === "BY CONTAINER") {
       if (isSize20) {
         multiplier = num20gp;
@@ -125,8 +143,30 @@ export function getImportedFclCosts(
     } else if (row.paymentType === "BY SHIPMENT") {
       multiplier = numShipments;
     } else if (row.paymentType === "BY CBM") {
-      multiplier = totalCbm;
+      if (row.cbmTierMin !== undefined && row.cbmTierMax !== undefined) {
+        // Tiered bracket rate: a flat fee that only applies when totalCbm
+        // falls within this specific bracket. Multiple such tier rows
+        // commonly share the same expense type/ship-from — they are
+        // mutually exclusive, NOT additive.
+        if (totalCbm >= row.cbmTierMin && totalCbm <= row.cbmTierMax) {
+          multiplier = 1; // flat fee, applied once
+        } else {
+          skipRow = true;
+        }
+      } else {
+        // Untiered "BY CBM" is the catch-all rate for volumes above every
+        // defined tier bracket. If some bracket already covers this
+        // shipment's CBM for this expense type, this row must not also
+        // apply — it would double-charge on top of the matched bracket.
+        if (tierCoveredExpenseTypes.has(expenseType)) {
+          skipRow = true;
+        } else {
+          multiplier = totalCbm;
+        }
+      }
     }
+
+    if (skipRow) return;
 
     const amountInThb = convertToThb(row.amount, row.currency);
     const totalCost = amountInThb * multiplier;
@@ -1649,6 +1689,18 @@ export function processScenario(
     }
   });
 
+  // Snapshot each PR's shipment assignment here — before the loading-day
+  // reassignment pass or MOQ/MCQ pull-forward can move it to a different
+  // shipment. This is what "before optimization" quantity means for the
+  // UI's per-shipment "Original Qty" display: without it, once a PR gets
+  // consolidated into an earlier shipment, that shipment's displayed
+  // "Original Qty" would just be the post-consolidation total shown
+  // pre-rounding — not actually reflective of what belonged there before
+  // any optimization ran.
+  processedEntries.forEach(pr => {
+    pr.naturalAssignedWeek = pr.assignedWeek;
+  });
+
   // Calculate dynamic shipment dates and PO due dates for each group.
   // Computed once, before MOQ/MCQ pull-forward runs — pull-forward always
   // gets the final say on quantity consolidation, so these dates are never
@@ -1831,7 +1883,7 @@ export function processScenario(
       // Try to find a matching PR of this color/item in the determined target week
       let matchingPr = processedEntries.find(pr => 
         pr.colorCode.toUpperCase().trim() === ov.colorCode.toUpperCase().trim() &&
-        (!ov.itemCode || pr.itemCode.toUpperCase().trim() === ov.itemCode.toUpperCase().trim()) &&
+        (!ov.itemDescription || (pr.itemDescription || pr.itemCode).toUpperCase().trim() === ov.itemDescription.toUpperCase().trim()) &&
         pr.assignedWeek === determinedTargetWeek
       );
 
@@ -1847,7 +1899,7 @@ export function processScenario(
       if (!matchingPr) {
         matchingPr = processedEntries.find(pr => 
           pr.colorCode.toUpperCase().trim() === ov.colorCode.toUpperCase().trim() &&
-          (!ov.itemCode || pr.itemCode.toUpperCase().trim() === ov.itemCode.toUpperCase().trim())
+          (!ov.itemDescription || (pr.itemDescription || pr.itemCode).toUpperCase().trim() === ov.itemDescription.toUpperCase().trim())
         );
       }
 
@@ -1877,6 +1929,8 @@ export function processScenario(
           }
           if (ov.cbmPerUnit !== undefined && ov.cbmPerUnit > 0) {
             newPr.cbm = addQty * ov.cbmPerUnit;
+          } else if (matchingPr.unitWeightRaw !== undefined && matchingPr.unitWeightRaw > 0) {
+            newPr.cbm = addQty * matchingPr.unitWeightRaw;
           } else {
             newPr.cbm = addQty * 0.003;
           }
@@ -1893,6 +1947,8 @@ export function processScenario(
           
           if (ov.cbmPerUnit !== undefined && ov.cbmPerUnit > 0) {
             matchingPr.cbm = matchingPr.qty * ov.cbmPerUnit;
+          } else if (matchingPr.unitWeightRaw !== undefined && matchingPr.unitWeightRaw > 0) {
+            matchingPr.cbm = matchingPr.qty * matchingPr.unitWeightRaw;
           } else if (prevQty > 0) {
             matchingPr.cbm = matchingPr.cbm * (matchingPr.qty / prevQty);
           } else {
@@ -1914,8 +1970,8 @@ export function processScenario(
 
         const dummyPr: PrEntry = {
           id: `PAD-${ov.colorCode}-${determinedTargetWeek}`,
-          itemCode: ov.itemCode || "PAD-MATERIAL",
-          itemDescription: "Padded MCQ Material",
+          itemCode: "PAD-MATERIAL",
+          itemDescription: ov.itemDescription || "Padded MCQ Material",
           colorCode: ov.colorCode,
           qty: addQty,
           originalQty: addQty,
@@ -1985,7 +2041,9 @@ export function processScenario(
               excessQty: (matchingPr.excessQty || 0) + diff,
               assignedWeek: week
             };
-            newPr.cbm = prevQty > 0 ? (matchingPr.cbm / prevQty) * diff : diff * 0.003;
+            newPr.cbm = matchingPr.unitWeightRaw !== undefined && matchingPr.unitWeightRaw > 0
+              ? diff * matchingPr.unitWeightRaw
+              : (prevQty > 0 ? (matchingPr.cbm / prevQty) * diff : diff * 0.003);
             processedEntries.push(newPr);
           } else {
             // Editing an existing cell — originalQty must NOT change here.
@@ -1994,7 +2052,9 @@ export function processScenario(
             // editable value) should move.
             matchingPr.qty += diff;
             matchingPr.excessQty = (matchingPr.excessQty || 0) + diff;
-            matchingPr.cbm = prevQty > 0 ? (matchingPr.cbm / prevQty) * matchingPr.qty : matchingPr.qty * 0.003;
+            matchingPr.cbm = matchingPr.unitWeightRaw !== undefined && matchingPr.unitWeightRaw > 0
+              ? matchingPr.qty * matchingPr.unitWeightRaw
+              : (prevQty > 0 ? (matchingPr.cbm / prevQty) * matchingPr.qty : matchingPr.qty * 0.003);
           }
         } else {
           // No entries for this exact item description + color at all, create dummy entry
@@ -2025,7 +2085,9 @@ export function processScenario(
           const reduceAmount = Math.min(pr.qty, remainingToReduce);
           const prevQty = pr.qty;
           pr.qty -= reduceAmount;
-          pr.cbm = prevQty > 0 ? (pr.cbm / prevQty) * pr.qty : 0;
+          pr.cbm = pr.unitWeightRaw !== undefined && pr.unitWeightRaw > 0
+            ? pr.qty * pr.unitWeightRaw
+            : (prevQty > 0 ? (pr.cbm / prevQty) * pr.qty : 0);
           remainingToReduce -= reduceAmount;
         }
       }
@@ -2133,10 +2195,19 @@ export function processScenario(
 
         // We pull from later weeks if:
         // 1. The current week has a gap (currentQty > 0 && currentQty < colorMcq)
-        // 2. OR any later active September week has a sub-MCQ gap for this color
+        // 2. OR any later active week has a sub-MCQ gap for this color
+        //
+        // Both cases require currentQty > 0 — pulling material INTO a week
+        // that has zero existing volume for this color doesn't consolidate
+        // with anything; it just relocates the exact same shortfall to a
+        // different (often earlier, always more expensive) date while
+        // still leaving it under MCQ. If this color truly has only one
+        // shipment's worth of material across the whole scenario, there is
+        // nothing to combine it with, and it should stay exactly where it
+        // is rather than being moved for no MCQ benefit.
         let shouldPull = (currentQty > 0 && currentQty < colorMcq);
-        
-        if (!shouldPull) {
+
+        if (!shouldPull && currentQty > 0) {
           for (let j = i + 1; j < pullForwardEligibleWeeks.length; j++) {
             const w_next = pullForwardEligibleWeeks[j];
             const nextEntries = processedEntries.filter(p => p.colorCode === color && p.assignedWeek === w_next);
@@ -2495,10 +2566,42 @@ export function processScenario(
 
     const weekQuantities = S.map(w => {
       const prsInWeek = itemPrs.filter(p => p.assignedWeek === w);
+
+      // A week that contains a manually-edited cell (via the MCQ Shipment
+      // Calendar Matrix) is "settled" — the user's explicit number IS the
+      // final quantity, not a fractional value awaiting a rounding
+      // decision. Manual overrides never change originalQty (by design,
+      // so the true source value stays visible in the UI), which means
+      // this week's cascade input would otherwise still be computed from
+      // the stale pre-edit originalQty — creating a target totally
+      // disconnected from the actual (manually-set, already-integer)
+      // total. Reconciling that gap by dumping it into "Rounding
+      // Surcharge" misrepresents a manual business decision (e.g.
+      // deliberately padding a color up to meet MCQ) as if it were a
+      // side-effect of fractional rounding.
+      const isManuallySettled = prsInWeek.some(p => {
+        const desc = (p.itemDescription || p.itemCode).toUpperCase().trim();
+        const colorUpper = p.colorCode.toUpperCase().trim();
+        const cellKey = `${desc}__${colorUpper}__${w}`;
+        return Object.keys(manualMatrixQtyOverrides || {}).some(k => k.toUpperCase() === cellKey);
+      });
+
       return {
         week: w,
-        qty: cleanQtyFloat(prsInWeek.reduce((sum, p) => sum + p.qty, 0)),
-        prs: prsInWeek
+        // Use each PR's immutable originalQty (the true value extracted
+        // directly from the uploaded PR file) as the basis for cumulative
+        // rounding, NOT the current `qty` field — `qty` may already be a
+        // whole number left over from a prior rounding pass (e.g. this
+        // scenario was reprocessed after accepting a flag), and cascading
+        // ceil/floor logic on an already-rounded number silently loses the
+        // true fractional excess, corrupting every subsequent shipment's
+        // round-up/round-down decision in the chain.
+        // Manually-injected matrix overrides intentionally have
+        // originalQty === 0 (there is no "original file" value for them),
+        // so for those specific rows fall back to their current qty.
+        qty: cleanQtyFloat(prsInWeek.reduce((sum, p) => sum + (p.originalQty > 0 ? p.originalQty : p.qty), 0)),
+        prs: prsInWeek,
+        isManuallySettled
       };
     });
 
@@ -2508,40 +2611,59 @@ export function processScenario(
     const qtys = activeWeeks.map(wq => wq.qty);
     const roundedQtys: number[] = [];
     const excesses: number[] = [];
-    
+
     if (qtys.length > 0) {
-      // Evaluate Shipment 1
-      const qty_1 = qtys[0];
-      const rounded_1 = isNearInteger(qty_1) ? Math.round(qty_1) : Math.ceil(qty_1);
-      roundedQtys.push(rounded_1);
-      const excess_1 = cleanQtyFloat(rounded_1 - qty_1);
-      excesses.push(excess_1);
+      // Running "surplus bank": how much the cumulative rounded total is
+      // currently ahead of the cumulative true original total. Shipment 1
+      // is always rounded UP, seeding this bank with its own excess. Every
+      // later shipment then draws down that bank to cover its own
+      // fractional remainder (rounding DOWN) whenever the bank can fully
+      // cover it, or rounds UP and adds its own excess into the bank when
+      // it can't. This keeps the running rounded total always >= the
+      // running true original total, while minimizing total excess
+      // shipped — and it generalizes to any number of shipments in the
+      // chain, not just a fixed comparison against shipment 1.
+      //
+      // Example: 559.238 -> ceil -> 560 (bank = 0.762)
+      //          157.575: fractional 0.575 <= bank(0.762) -> floor -> 157 (bank = 0.762 - 0.575 = 0.187)
+      //          1873.061: fractional 0.061 <= bank(0.187) -> floor -> 1873 (bank = 0.187 - 0.061 = 0.126)
+      let surplus = 0;
 
-      // Evaluate subsequent shipments
-      for (let j = 1; j < qtys.length; j++) {
-        const qty_curr = qtys[j];
-        let rounded_curr: number;
+      activeWeeks.forEach((wq, j) => {
+        const qty_j = qtys[j];
+        let rounded_j: number;
 
-        if (isNearInteger(qty_curr)) {
-          rounded_curr = Math.round(qty_curr);
+        if (wq.isManuallySettled) {
+          // Skip the cascade entirely for a manually-settled week: the
+          // current total (already an integer, from the user's edit) IS
+          // the final answer — nothing to round, no excess to bank or
+          // draw from.
+          rounded_j = cleanQtyFloat(wq.prs.reduce((sum, p) => sum + p.qty, 0));
+        } else if (isNearInteger(qty_j)) {
+          rounded_j = Math.round(qty_j);
+        } else if (j === 0) {
+          // Shipment 1 always rounds up, establishing the initial bank.
+          rounded_j = Math.ceil(qty_j);
         } else {
-          const rounded_curr_initial = Math.ceil(qty_curr);
-          const excess_curr = cleanQtyFloat(rounded_curr_initial - qty_curr);
-
-          // Conditional Adjustment Rule:
-          // If excess_1 > excess_curr, round Shipment j strictly DOWN (nearest integer floor)
-          // If excess_1 <= excess_curr, round Shipment j strictly UP (nearest integer ceiling)
-          // (An exact tie favors rounding up, not down.)
-          if (excess_1 > excess_curr) {
-            rounded_curr = Math.floor(qty_curr);
-          } else {
-            rounded_curr = rounded_curr_initial;
-          }
+          const fractional_j = cleanQtyFloat(qty_j - Math.floor(qty_j));
+          // An exact tie (surplus === fractional remainder) favors
+          // rounding UP, consistent with this app's established rounding
+          // convention elsewhere.
+          rounded_j = surplus > fractional_j ? Math.floor(qty_j) : Math.ceil(qty_j);
         }
 
-        roundedQtys.push(rounded_curr);
-        excesses.push(rounded_curr - qty_curr);
-      }
+        // A manually-settled week's delta is a deliberate business decision
+        // (e.g. padding a color up to meet MCQ), not a rounding effect —
+        // it must not feed into the surplus bank that arbitrates genuine
+        // fractional round-up/round-down decisions on this item/color's
+        // OTHER shipments. Only real rounding excess should ever bank or
+        // draw from that surplus.
+        if (!wq.isManuallySettled) {
+          surplus = cleanQtyFloat(surplus + (rounded_j - qty_j));
+        }
+        roundedQtys.push(rounded_j);
+        excesses.push(cleanQtyFloat(rounded_j - qty_j));
+      });
     }
 
     activeWeeks.forEach((wq, index) => {
@@ -2616,7 +2738,18 @@ export function processScenario(
       pr.daysEarly = diffDays;
     }
 
-    if (pr.originalQty > 0) {
+    // Recompute cbm for the PR's final qty. Prefer the stable per-unit
+    // unitWeightRaw factor (Unit Weight × Quantity, per explicit design)
+    // over a ratio against originalQty — a ratio-based recompute silently
+    // DOUBLE-COUNTS any adjustment that already updated pr.cbm for the
+    // current qty earlier in the pipeline (e.g. a manual Shipment
+    // Calendar Matrix override), since pr.originalQty deliberately never
+    // changes from such an edit. unitWeightRaw has no such problem: it's
+    // a fixed per-unit factor, so qty × unitWeightRaw is correct no
+    // matter how many times or in what order it gets recalculated.
+    if (pr.unitWeightRaw !== undefined && pr.unitWeightRaw > 0) {
+      pr.cbm = pr.qty * pr.unitWeightRaw;
+    } else if (pr.originalQty > 0) {
       pr.cbm = pr.cbm * (pr.qty / pr.originalQty);
     } else {
       pr.cbm = 0;
@@ -2887,6 +3020,9 @@ export function processScenario(
       category: "Price",
       message: `${combo.itemCode} / ${combo.colorCode} has a Unit Price of $0.00`,
       details: `This is likely a data entry error in the uploaded PR file. Landed cost, carrying cost, and opportunity cost for this item will be understated until corrected.`,
+      messageKey: "flag.zeroPrice.message",
+      messageParams: { itemCode: combo.itemCode, colorCode: combo.colorCode },
+      detailsKey: "flag.zeroPrice.details",
       itemCode: combo.itemCode,
       colorCode: combo.colorCode
     });
@@ -2898,7 +3034,10 @@ export function processScenario(
       type: "info",
       category: "General",
       message: `Total volume is below 19 CBM (${totalCbmAll.toFixed(2)} CBM).`,
-      details: `Optimized for LCL shipping: All items consolidated into a single shipment on the same day (Scenario 1) to minimize transport & handling costs.`
+      details: `Optimized for LCL shipping: All items consolidated into a single shipment on the same day (Scenario 1) to minimize transport & handling costs.`,
+      messageKey: "flag.lclSameDay.message",
+      messageParams: { cbm: totalCbmAll.toFixed(2) },
+      detailsKey: "flag.lclSameDay.details"
     });
   }
   
@@ -2908,7 +3047,11 @@ export function processScenario(
         type: "error",
         category: "Container",
         message: `Shipment Week ${s.week} is overloaded!`,
-        details: `CBM is ${s.totalCbm.toFixed(2)} which exceeds the capacity of ${s.container.capacity} CBM.`
+        details: `CBM is ${s.totalCbm.toFixed(2)} which exceeds the capacity of ${s.container.capacity} CBM.`,
+        messageKey: "flag.containerOverloaded.message",
+        messageParams: { week: s.week },
+        detailsKey: "flag.containerOverloaded.details",
+        detailsParams: { cbm: s.totalCbm.toFixed(2), capacity: s.container.capacity }
       });
     } else if (s.totalQty > 0 && s.container.status === "Review Needed" && s.container.excessCbm && s.container.excessCbm > 0.005) {
       const flagKey = `container_tolerance_week_${s.week}`;
@@ -2918,6 +3061,10 @@ export function processScenario(
           category: "Container",
           message: `Shipment Week ${s.week} is close to container limit.`,
           details: `Over capacity by ${s.container.excessCbm?.toFixed(2)} CBM, within the 2.1 CBM tolerance.`,
+          messageKey: "flag.containerCloseToLimit.message",
+          messageParams: { week: s.week },
+          detailsKey: "flag.containerCloseToLimit.details",
+          detailsParams: { excessCbm: s.container.excessCbm?.toFixed(2) ?? "0" },
           flagKey,
           actionType: "accept_container_tolerance"
         });
@@ -2932,7 +3079,11 @@ export function processScenario(
         type: "error",
         category: "Delay",
         message: `Line ${pr.id} arrives LATE by ${Math.abs(days)} days!`,
-        details: `PR Due Date: ${pr.prDueDate.toLocaleDateString()}, PO Due Date: ${pr.poDueDate?.toLocaleDateString()}.`
+        details: `PR Due Date: ${pr.prDueDate.toLocaleDateString()}, PO Due Date: ${pr.poDueDate?.toLocaleDateString()}.`,
+        messageKey: "flag.lateArrival.message",
+        messageParams: { id: pr.id, days: Math.abs(days) },
+        detailsKey: "flag.lateArrival.details",
+        detailsParams: { prDate: pr.prDueDate.toLocaleDateString(), poDate: pr.poDueDate?.toLocaleDateString() ?? "" }
       });
     }
   });
@@ -2955,6 +3106,10 @@ export function processScenario(
           category: "MCQ",
           message: `MCQ Conflict for ${color} (${colorVendor || "Vendor"}): PR File is ${res.prFileMcq?.toLocaleString()} YD vs Surcharge Rule is ${res.surchargeMcq?.toLocaleString()} YD`,
           details: `Currently applying ${res.mcqActiveSource === "pr_file" ? "PR File (" + res.effectiveMcq.toLocaleString() + " YD)" : "Surcharge Rule (" + res.effectiveMcq.toLocaleString() + " YD)"}. Priority defaults to Surcharge Rules unless overridden.`,
+          messageKey: "flag.mcqConflict.message",
+          messageParams: { color, vendor: colorVendor || "Vendor", prFileValue: res.prFileMcq?.toLocaleString() ?? "0", surchargeValue: res.surchargeMcq?.toLocaleString() ?? "0" },
+          detailsKey: res.mcqActiveSource === "pr_file" ? "flag.conflict.details.prFile" : "flag.conflict.details.surchargeRule",
+          detailsParams: { value: res.effectiveMcq.toLocaleString() },
           colorCode: color,
           conflictInfo: {
             key: mcqConflictKey,
@@ -2981,6 +3136,10 @@ export function processScenario(
           category: "MOQ",
           message: `MOQ Conflict for ${colorVendor || "Vendor"}: PR File is ${res.prFileMoq?.toLocaleString()} YD vs Surcharge Rule is ${res.surchargeMoq?.toLocaleString()} YD`,
           details: `Currently applying ${res.moqActiveSource === "pr_file" ? "PR File (" + res.effectiveMoq.toLocaleString() + " YD)" : "Surcharge Rule (" + res.effectiveMoq.toLocaleString() + " YD)"}. Priority defaults to Surcharge Rules unless overridden.`,
+          messageKey: "flag.moqConflict.message",
+          messageParams: { vendor: colorVendor || "Vendor", prFileValue: res.prFileMoq?.toLocaleString() ?? "0", surchargeValue: res.surchargeMoq?.toLocaleString() ?? "0" },
+          detailsKey: res.moqActiveSource === "pr_file" ? "flag.conflict.details.prFile" : "flag.conflict.details.surchargeRule",
+          detailsParams: { value: res.effectiveMoq.toLocaleString() },
           conflictInfo: {
             key: moqConflictKey,
             vendor: colorVendor,
@@ -3006,31 +3165,55 @@ export function processScenario(
             category: "MCQ",
             message: `${color} is under MCQ (${q.toFixed(0)}/${colorMcq} YD) on Shipment Date ${getShipmentDateLocal(w).toLocaleDateString()}`,
             details: `Incurred MCQ penalty surcharge.`,
+            messageKey: "flag.underMcq.message",
+            messageParams: { color, qty: q.toFixed(0), mcq: colorMcq, date: getShipmentDateLocal(w).toLocaleDateString() },
+            detailsKey: "flag.underMcq.details",
             flagKey,
-            actionType: "pay_mcq_surcharge"
+            actionType: "pay_mcq_surcharge",
+            week: w,
+            colorCode: color
           });
         }
       }
     });
   });
 
-  const totalOrderQty = processedEntries.reduce((sum, p) => sum + p.qty, 0);
-  if (totalOrderQty > 0 && totalOrderQty < defaultMOQ) {
-    const totalSurchargeUSD = totalMoqSurchargeCost / USD_TO_THB;
-    errorFlags.push({
-      type: "warning",
-      category: "MOQ",
-      message: `Order total is under MOQ (${totalOrderQty.toFixed(0)}/${defaultMOQ} YD)`,
-      details: `The entire order is below the minimum order quantity requirement of ${defaultMOQ} YD. Total MOQ/MCQ surcharge incurred: ${totalSurchargeUSD.toFixed(2)} USD (${Math.round(totalMoqSurchargeCost).toLocaleString()} THB).`
-    });
-  }
+  // MOQ is a per-shipment minimum, not a one-time whole-order check: each
+  // shipment must independently reach the minimum order quantity, since
+  // each shipment is placed/loaded separately by the vendor. Checking only
+  // the summed total across every shipment would let, e.g., 10 shipments
+  // of 300 YD each (3,000 YD total) look "compliant" against a 3,000 YD
+  // target even though every individual shipment actually falls far short.
+  S.forEach(w => {
+    const shipmentQty = processedEntries
+      .filter(p => p.assignedWeek === w)
+      .reduce((sum, p) => sum + p.qty, 0);
+    if (shipmentQty > 0 && shipmentQty < defaultMOQ) {
+      const shipmentDate = getShipmentDateLocal(w).toLocaleDateString();
+      errorFlags.push({
+        type: "warning",
+        category: "MOQ",
+        message: `Shipment ${w} total is under MOQ (${shipmentQty.toFixed(0)}/${defaultMOQ} YD) on Shipment Date ${shipmentDate}`,
+        details: `This shipment alone falls short of the minimum order quantity requirement of ${defaultMOQ} YD.`,
+        messageKey: "flag.shipmentUnderMoq.message",
+        messageParams: { week: w, qty: shipmentQty.toFixed(0), moq: defaultMOQ, date: shipmentDate },
+        detailsKey: "flag.shipmentUnderMoq.details",
+        detailsParams: { moq: defaultMOQ },
+        week: w
+      });
+    }
+  });
 
   if (warehouseStuckDays > 0) {
     errorFlags.push({
       type: "info",
       category: "Warehouse",
       message: `Containers delayed by ${warehouseStuckDays} days in Port Warehouse.`,
-      details: `Incurred warehouse storage rent of ${totalWarehouseRentCost.toLocaleString()} THB.`
+      details: `Incurred warehouse storage rent of ${totalWarehouseRentCost.toLocaleString()} THB.`,
+      messageKey: "flag.warehouseDelay.message",
+      messageParams: { days: warehouseStuckDays },
+      detailsKey: "flag.warehouseDelay.details",
+      detailsParams: { thb: totalWarehouseRentCost.toLocaleString() }
     });
   }
 
@@ -3100,7 +3283,8 @@ export function processScenario(
       type: "warning",
       category: "Container",
       message: `Requires manual review! Container configuration exceeds elastic capacity limit.`,
-      details: containerMatchingDetails
+      details: containerMatchingDetails,
+      messageKey: "flag.manualReview.message"
     });
   }
 

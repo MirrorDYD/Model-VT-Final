@@ -2,7 +2,6 @@ import React, { useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { Upload, Database, Check, AlertCircle, FileSpreadsheet, RefreshCw, HelpCircle } from "lucide-react";
 import { PrEntry } from "../types";
-import { loadSamplePrEntries } from "../data";
 import { Language, t } from "../utils/translate";
 
 interface PrUploaderProps {
@@ -75,6 +74,11 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
     const idxUnitWeight = findIdx("Unit Weight");
     const idxUom = findIdx("U/M", "first");
     const idxCurrencyAfterExtended = idxPlanExtendedCost >= 0 ? idxPlanExtendedCost + 1 : -1;
+    const idxFreight = findIdx("Freight");
+    const idxDuty = findIdx("Duty");
+    const idxBrokerage = findIdx("Brokerage");
+    const idxInsurance = findIdx("Insurance");
+    const idxLocalFreight = findIdx("Local Freight");
 
     const getCell = (r: number, c: number): any => (c >= 0 && r < bodyRows.length && bodyRows[r] && bodyRows[r][c] !== undefined) ? bodyRows[r][c] : "";
     const getStr = (r: number, c: number): string | undefined => {
@@ -102,7 +106,12 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
         planExtendedCostCurrencyRaw: getStr(i, idxCurrencyAfterExtended)?.toUpperCase(),
         orderMultipleRaw: getNum(i, idxOrderMultiple),
         unitWeightRaw: getNum(i, idxUnitWeight),
-        uomRaw: getStr(i, idxUom)
+        uomRaw: getStr(i, idxUom),
+        freightRaw: getNum(i, idxFreight),
+        dutyRaw: getNum(i, idxDuty),
+        brokerageRaw: getNum(i, idxBrokerage),
+        insuranceRaw: getNum(i, idxInsurance),
+        localFreightRaw: getNum(i, idxLocalFreight)
       });
     }
     return out;
@@ -139,6 +148,8 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
 
     let prDueDateScore = 0;
     let itemCodeScore = 0;
+    let qtyScore = 0;
+    let unitPriceScore = 0;
 
     sheetHeaders.forEach(h => {
       const norm = normalize(h);
@@ -199,11 +210,66 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
         }
       }
       
-      if (norm.includes("qty") || norm.includes("quantity") || norm === "ordered" || norm === "orderqty") {
+      // Priority scoring for Qty to avoid derived/aggregate columns like
+      // "Qty Received" or "QtyBalanceCol" (remaining balance, not the
+      // original PR line quantity) silently outranking the real "Ordered"
+      // column just because they happen to appear later in the file and
+      // also contain "qty" — this was a genuine bug: adding more columns
+      // to a source export (e.g. Syteline growing from a handful of
+      // columns to 80+) could silently re-point Ordered Quantity at an
+      // unrelated balance/received column with no error shown.
+      let qtyPickScore = 0;
+      if (norm === "ordered" || norm === "orderqty" || norm === "orderedqty") {
+        qtyPickScore = 10;
+      } else if (norm === "qty" || norm === "quantity") {
+        qtyPickScore = 8;
+      } else if (norm.includes("orderedqty") || norm.includes("orderqty")) {
+        qtyPickScore = 6;
+      } else if (
+        (norm.includes("qty") || norm.includes("quantity")) &&
+        !norm.includes("received") && !norm.includes("balance") && !norm.includes("shipped") && !norm.includes("delivered")
+      ) {
+        qtyPickScore = 4;
+      } else if (norm.includes("qty") || norm.includes("quantity")) {
+        // Matches but looks derived (received/balance/shipped/delivered qty)
+        // — still a fallback if nothing better exists, but ranked lowest.
+        qtyPickScore = 1;
+      }
+      if (qtyPickScore > qtyScore) {
+        qtyScore = qtyPickScore;
         map.qty = h;
-      } else if (norm.includes("price") || norm.includes("unitprice") || norm.includes("materialprice") || norm === "cost" || norm.includes("plancost") || norm.includes("extended") || norm.includes("rate")) {
+      }
+
+      // Priority scoring for Unit Price. "Material" is the validated true
+      // per-unit price column in Syteline exports. Generic "cost" columns
+      // (Plan Cost, Plan Extended Cost, Requisition Cost, etc.) must never
+      // outrank it — an "Extended"/"Total" cost is Qty × Unit Price, and
+      // using it AS the unit price would silently multiply every landed
+      // cost calculation by the order quantity a second time.
+      let unitPricePickScore = 0;
+      if (norm === "material" || norm === "materialusd") {
+        unitPricePickScore = 10;
+      } else if (norm === "unitprice" || norm === "price") {
+        unitPricePickScore = 9;
+      } else if (norm.includes("unitprice") || norm.includes("materialprice")) {
+        unitPricePickScore = 7;
+      } else if (norm.includes("price") && !norm.includes("total") && !norm.includes("extended")) {
+        unitPricePickScore = 5;
+      } else if (norm.includes("rate") && !norm.includes("carrying") && !norm.includes("interest") && !norm.includes("tax") && !norm.includes("urate") && !norm.includes("exchange") && !norm.includes("buyrate")) {
+        unitPricePickScore = 3;
+      } else if ((norm === "cost" || norm.includes("plancost")) && !norm.includes("extended") && !norm.includes("total")) {
+        unitPricePickScore = 2;
+      } else if (norm.includes("extended") || (norm.includes("cost") && norm.includes("total"))) {
+        // Explicitly an aggregate/extended value, not a per-unit price —
+        // only ever used as an absolute last resort.
+        unitPricePickScore = 1;
+      }
+      if (unitPricePickScore > unitPriceScore) {
+        unitPriceScore = unitPricePickScore;
         map.unitPrice = h;
-      } else if (norm.includes("color") || norm.includes("colour") || norm === "colorcode" || norm === "colourcode") {
+      }
+
+      if (norm.includes("color") || norm.includes("colour") || norm === "colorcode" || norm === "colourcode") {
         map.colorCode = h;
       } else if (norm === "cbm" || norm.includes("volume") || norm.includes("cbmkg")) {
         map.cbm = h;
@@ -492,7 +558,19 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
         let unitPrice = parseFloat(String(rawPrice).replace(/,/g, "")) || 0;
 
         const priceHeader = currentMap.unitPrice ? String(currentMap.unitPrice).toLowerCase() : "";
-        const isExtendedPrice = priceHeader.includes("extended") || priceHeader.includes("total") || priceHeader.includes("amount") || priceHeader.includes("sum") || priceHeader.includes("cost") || priceHeader.includes("material");
+        // Only genuinely unambiguous "this is a total, not a per-unit price"
+        // header names should trigger dividing by qty. "cost" and "material"
+        // were removed from this list: both are extremely common names for
+        // an already-correct PER-UNIT price in real ERP exports (e.g. a
+        // column literally named "Material" holding $/unit) — treating
+        // them as if they were an extended/aggregate total silently divided
+        // a correct price by quantity, and because that division's qty
+        // then cancels back out when the total is re-multiplied by qty
+        // downstream, it made every material cost total collapse to
+        // roughly "sum of raw per-unit prices" instead of "sum of
+        // qty × price" — understating true material cost by orders of
+        // magnitude with no error or warning.
+        const isExtendedPrice = priceHeader.includes("extended") || priceHeader.includes("total") || priceHeader.includes("amount") || priceHeader.includes("sum");
         if (isExtendedPrice && qty > 0) {
           unitPrice = unitPrice / qty;
         }
@@ -531,12 +609,19 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
           if (candidateDueKey) dueDateRaw = parseDateValue(row[candidateDueKey]);
         }
 
-        // Parse CBM safely
-        const rawCbm = currentMap.cbm ? row[currentMap.cbm] : null;
-        // Default CBM per unit if not defined
-        const cbm = rawCbm !== null && rawCbm !== undefined 
-          ? parseFloat(String(rawCbm).replace(/,/g, "")) || 0
-          : qty * 0.003; // Default factor
+        const extra = (extraFieldsOverride ?? extraRawFields)[idx] || {};
+
+        // CBM is calculated exclusively as Unit Weight × Quantity, per
+        // explicit instruction — the direct CBM/Volume column from the
+        // file (e.g. "Total CBM/KG") is intentionally NOT used, even when
+        // present. Falls back to a flat 0.003 CBM/unit constant only if
+        // Unit Weight itself is unavailable.
+        let cbm: number;
+        if (extra.unitWeightRaw !== undefined && extra.unitWeightRaw > 0 && qty > 0) {
+          cbm = extra.unitWeightRaw * qty;
+        } else {
+          cbm = qty * 0.003; // Last-resort fallback only, when Unit Weight is missing
+        }
 
         // Parse MOQ
         const rawMoq = currentMap.moq ? row[currentMap.moq] : null;
@@ -593,7 +678,17 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
           ? parseFloat(String(rawRate).replace(/,/g, "")) || undefined
           : undefined;
 
-        let rawCurr = currentMap.currency ? row[currentMap.currency] : null;
+        // Files with multiple ambiguous "Currency" columns (e.g. Syteline
+        // exports commonly have 3-4 of them, describing different unrelated
+        // aggregate figures) must not let a naive last-match-wins mapping
+        // pick the wrong one. `planExtendedCostCurrencyRaw` is anchored by
+        // POSITION (the column immediately after "Plan Extended Cost") and
+        // is therefore guaranteed to be the currency that actually applies
+        // to the unit price/material cost — use it first. Getting this
+        // wrong silently treats a USD price as if it were already in THB
+        // (or vice versa), understating/overstating material cost by
+        // roughly the exchange rate itself.
+        let rawCurr: any = extra.planExtendedCostCurrencyRaw || (currentMap.currency ? row[currentMap.currency] : null);
         if (rawCurr === null || rawCurr === undefined || rawCurr === "") {
           for (const key of Object.keys(row)) {
             const kNorm = key.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -633,8 +728,6 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
 
         const idVal = `${String(rawId || `PR-${idx + 100}`).trim()}-${idx}`;
 
-        const extra = (extraFieldsOverride ?? extraRawFields)[idx] || {};
-
         return {
           id: idVal,
           requisitionRaw: String(rawId).trim(),
@@ -671,7 +764,12 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
           planExtendedCostCurrencyRaw: extra.planExtendedCostCurrencyRaw,
           orderMultipleRaw: extra.orderMultipleRaw,
           unitWeightRaw: extra.unitWeightRaw,
-          uomRaw: extra.uomRaw
+          uomRaw: extra.uomRaw,
+          freightRaw: extra.freightRaw,
+          dutyRaw: extra.dutyRaw,
+          brokerageRaw: extra.brokerageRaw,
+          insuranceRaw: extra.insuranceRaw,
+          localFreightRaw: extra.localFreightRaw
         };
       });
 
@@ -709,11 +807,34 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
     }
   };
 
-  const loadSample = () => {
+  const [isLoadingSample, setIsLoadingSample] = useState(false);
+
+  const loadSample = async () => {
     setError(null);
-    setFileName("VT_Garment_September_Planning.xlsx (Preset Sample)");
-    onDataLoaded(loadSamplePrEntries());
-    setShowMappingGui(false);
+    setIsLoadingSample(true);
+    try {
+      // Fetch the real sample spreadsheet (served from /public) and run it
+      // through the exact same parsing pipeline as a manual upload
+      // (handleFileParse -> autoDetectMapping -> applyMapping). This is
+      // deliberately NOT a hand-maintained hardcoded dataset: a static
+      // snapshot silently drifts out of sync whenever the source file's
+      // column layout changes (as happened when the real export grew from
+      // a handful of columns to 83), producing subtly wrong or missing
+      // data with no error. Re-parsing the actual file on every click
+      // guarantees this button always reflects reality.
+      const res = await fetch("/sample-data/KingWhale.xlsx");
+      if (!res.ok) throw new Error(`Could not load sample file (HTTP ${res.status}).`);
+      const blob = await res.blob();
+      const file = new File([blob], "KingWhale.xlsx", {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      handleFileParse(file);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Could not load the sample dataset.");
+    } finally {
+      setIsLoadingSample(false);
+    }
   };
 
   return (
@@ -735,10 +856,15 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
             <div className="shrink-0">
               <button
                 onClick={loadSample}
-                className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition duration-200"
+                disabled={isLoadingSample}
+                className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition duration-200 disabled:opacity-50 disabled:cursor-wait"
               >
-                <Database size={13} className="text-emerald-600" />
-                {t("Load VT Garment Sample Data", lang)}
+                {isLoadingSample ? (
+                  <RefreshCw size={13} className="text-emerald-600 animate-spin" />
+                ) : (
+                  <Database size={13} className="text-emerald-600" />
+                )}
+                {isLoadingSample ? t("Loading…", lang) : t("Load VT Garment Sample Data", lang)}
               </button>
             </div>
           </div>
@@ -747,7 +873,7 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2.5">
               <AlertCircle size={16} className="text-red-600 mt-0.5 shrink-0" />
               <div>
-                <div className="text-xs font-semibold text-red-800">Data Parsing Error</div>
+                <div className="text-xs font-semibold text-red-800">{t("Data Parsing Error", lang)}</div>
                 <div className="text-[11px] text-red-600 mt-0.5 leading-relaxed">{error}</div>
               </div>
             </div>

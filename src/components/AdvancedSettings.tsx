@@ -12,16 +12,16 @@ import { getDefaultRouteQuotes } from "../optimizer";
 import { getDefaultImportedFclQuotes } from "../defaultFclQuotes";
 
 const renderIncotermsTable = (lang: Language) => {
-  const buyerLabel = "We Pay (Buyer)";
-  const vendorLabel = "Vendor Pays";
+  const buyerLabel = t("We Pay (Buyer)", lang);
+  const vendorLabel = t("Vendor Pays", lang);
 
   const rows = [
-    { name: "EXW", exwork: buyerLabel, freight: buyerLabel, local: buyerLabel, brokerage: buyerLabel, desc: "Ex Works" },
-    { name: "FCA", exwork: vendorLabel, freight: buyerLabel, local: buyerLabel, brokerage: buyerLabel, desc: "Free Carrier" },
-    { name: "FOB", exwork: vendorLabel, freight: buyerLabel, local: buyerLabel, brokerage: buyerLabel, desc: "Free On Board" },
-    { name: "CFR", exwork: vendorLabel, freight: vendorLabel, local: buyerLabel, brokerage: buyerLabel, desc: "Cost and Freight" },
-    { name: "CIF", exwork: vendorLabel, freight: vendorLabel, local: buyerLabel, brokerage: buyerLabel, desc: "Cost, Insurance & Freight" },
-    { name: "DDP", exwork: vendorLabel, freight: vendorLabel, local: vendorLabel, brokerage: vendorLabel, desc: "Delivered Duty Paid" },
+    { name: "EXW", exwork: buyerLabel, freight: buyerLabel, local: buyerLabel, brokerage: buyerLabel, desc: t("Ex Works", lang) },
+    { name: "FCA", exwork: vendorLabel, freight: buyerLabel, local: buyerLabel, brokerage: buyerLabel, desc: t("Free Carrier", lang) },
+    { name: "FOB", exwork: vendorLabel, freight: buyerLabel, local: buyerLabel, brokerage: buyerLabel, desc: t("Free On Board", lang) },
+    { name: "CFR", exwork: vendorLabel, freight: vendorLabel, local: buyerLabel, brokerage: buyerLabel, desc: t("Cost and Freight", lang) },
+    { name: "CIF", exwork: vendorLabel, freight: vendorLabel, local: buyerLabel, brokerage: buyerLabel, desc: t("Cost, Insurance & Freight", lang) },
+    { name: "DDP", exwork: vendorLabel, freight: vendorLabel, local: vendorLabel, brokerage: vendorLabel, desc: t("Delivered Duty Paid", lang) },
   ];
 
   return (
@@ -29,11 +29,11 @@ const renderIncotermsTable = (lang: Language) => {
       <table className="w-full text-left text-[9px] border-collapse">
         <thead>
           <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
-            <th className="px-2 py-1 w-1/6">Incoterm</th>
-            <th className="px-2 py-1 w-1/4">EXWORK (Origin Local)</th>
-            <th className="px-2 py-1 w-1/4">FREIGHT (Ocean)</th>
-            <th className="px-2 py-1 w-1/4">LOCAL (Dest. Local)</th>
-            <th className="px-2 py-1 w-1/4">BROKERAGE (Clearance)</th>
+            <th className="px-2 py-1 w-1/6">{t("Incoterm", lang)}</th>
+            <th className="px-2 py-1 w-1/4">{t("EXWORK (Origin Local)", lang)}</th>
+            <th className="px-2 py-1 w-1/4">{t("FREIGHT (Ocean)", lang)}</th>
+            <th className="px-2 py-1 w-1/4">{t("LOCAL (Dest. Local)", lang)}</th>
+            <th className="px-2 py-1 w-1/4">{t("BROKERAGE (Clearance)", lang)}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -1928,13 +1928,28 @@ export function parseQuotesExcel(fileBuffer: ArrayBuffer): ImportedFclQuote[] {
       const shipFrom = String(getVal(["Ship From", "Origin", "Route"]) || "").trim();
       const expenseType = String(getVal(["Expense Type", "Expense", "CostType"]) || "").trim().toUpperCase();
       
-      // Payment type: "BY CONTAINER" or "BY SHIPMENT" or "BY CBM"
+      // Payment type: "BY CONTAINER" or "BY SHIPMENT" or "BY CBM" — and for
+      // "BY CBM", the source may specify a tiered bracket like
+      // "BY CBM (1-4)" or "BY CBM (11-14)". That bracket must be preserved,
+      // not discarded: several such tiers commonly appear for the same
+      // ship-from/expense combination (e.g. one row per CBM bracket), and
+      // if they're all collapsed into the same generic "BY CBM" payment
+      // type, downstream cost calculation has no way to tell they're
+      // mutually-exclusive brackets — it ends up applying every bracket's
+      // rate at once and summing them, wildly overcharging.
       let paymentType: string = "BY CONTAINER";
+      let cbmTierMin: number | undefined;
+      let cbmTierMax: number | undefined;
       const payTypeStr = String(getVal(["Payment Type", "Payment", "Unit"]) || "").toUpperCase();
       if (payTypeStr.includes("SHIPMENT")) {
         paymentType = "BY SHIPMENT";
       } else if (payTypeStr.includes("CBM")) {
         paymentType = "BY CBM";
+        const tierMatch = payTypeStr.match(/\(\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*\)/);
+        if (tierMatch) {
+          cbmTierMin = parseFloat(tierMatch[1]);
+          cbmTierMax = parseFloat(tierMatch[2]);
+        }
       }
 
       const amount = parseFloat(String(getVal(["Amount", "Rate", "Price"]) || "0").replace(/,/g, "")) || 0;
@@ -1949,7 +1964,9 @@ export function parseQuotesExcel(fileBuffer: ArrayBuffer): ImportedFclQuote[] {
           expenseType,
           paymentType,
           amount,
-          currency
+          currency,
+          cbmTierMin,
+          cbmTierMax
         });
       }
     });
