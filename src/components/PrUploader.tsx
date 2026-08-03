@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { Upload, Database, Check, AlertCircle, FileSpreadsheet, RefreshCw, HelpCircle } from "lucide-react";
 import { PrEntry } from "../types";
 import { Language, t } from "../utils/translate";
+import { loadSamplePrEntries } from "../data";
 
 interface PrUploaderProps {
   onDataLoaded: (entries: PrEntry[]) => void;
@@ -389,71 +390,77 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
     return new TextDecoder("utf-8").decode(bytes);
   };
 
-  const handleFileParse = (file: File) => {
-    setError(null);
-    setFileName(file.name);
-    const reader = new FileReader();
+  const handleFileParse = (file: File): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      setError(null);
+      setFileName(file.name);
+      const reader = new FileReader();
 
-    const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
+      const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
 
-    reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        if (!data) throw new Error("Could not read file data.");
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          if (!data) throw new Error("Could not read file data.");
 
-        const workbook = isCsv
-          ? XLSX.read(decodeCsvText(data as ArrayBuffer), { type: "string" })
-          : XLSX.read(data, { type: "array" });
-        const firstSheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[firstSheetName];
-        
-        // Parse raw rows as objects with raw headers
-        const rows = XLSX.utils.sheet_to_json(sheet) as any[];
-        if (rows.length === 0) {
-          throw new Error("The uploaded spreadsheet is empty.");
+          const workbook = isCsv
+            ? XLSX.read(decodeCsvText(data as ArrayBuffer), { type: "string" })
+            : XLSX.read(data, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[firstSheetName];
+          
+          // Parse raw rows as objects with raw headers
+          const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+          if (rows.length === 0) {
+            throw new Error("The uploaded spreadsheet is empty.");
+          }
+
+          // Extract raw column headers
+          const sheetHeaders = Object.keys(rows[0]);
+          setHeaders(sheetHeaders);
+          setRawRows(rows);
+          const builtExtraRawFields = buildExtraRawFields(sheet, rows.length);
+          setExtraRawFields(builtExtraRawFields);
+
+          // Auto-detect columns
+          const detectedMap = autoDetectMapping(sheetHeaders);
+          setMapping(detectedMap);
+
+          // Verify if all required mappings are present
+          const missingRequired = !detectedMap.itemCode || !detectedMap.colorCode || !detectedMap.qty || !detectedMap.prDueDate;
+          
+          if (missingRequired) {
+            // Show mapping GUI to let user complete the mapping
+            setShowMappingGui(true);
+          } else {
+            // Complete import directly. Pass the just-built raw fields explicitly
+            // rather than relying on the `extraRawFields` state var, since the
+            // setExtraRawFields() call above hasn't been committed by React yet
+            // at this point in the same synchronous handler (stale closure) —
+            // reading from state here would silently yield [] and blank out
+            // every pass-through column (Ref.CO, Amount, Plan Cost, etc.).
+            applyMapping(rows, detectedMap, builtExtraRawFields);
+          }
+          resolve();
+        } catch (err: any) {
+          console.error(err);
+          setError(err.message || "An error occurred while parsing the file.");
+          reject(err);
         }
+      };
 
-        // Extract raw column headers
-        const sheetHeaders = Object.keys(rows[0]);
-        setHeaders(sheetHeaders);
-        setRawRows(rows);
-        const builtExtraRawFields = buildExtraRawFields(sheet, rows.length);
-        setExtraRawFields(builtExtraRawFields);
+      reader.onerror = () => {
+        const err = new Error("File reading error.");
+        setError(err.message);
+        reject(err);
+      };
 
-        // Auto-detect columns
-        const detectedMap = autoDetectMapping(sheetHeaders);
-        setMapping(detectedMap);
-
-        // Verify if all required mappings are present
-        const missingRequired = !detectedMap.itemCode || !detectedMap.colorCode || !detectedMap.qty || !detectedMap.prDueDate;
-        
-        if (missingRequired) {
-          // Show mapping GUI to let user complete the mapping
-          setShowMappingGui(true);
-        } else {
-          // Complete import directly. Pass the just-built raw fields explicitly
-          // rather than relying on the `extraRawFields` state var, since the
-          // setExtraRawFields() call above hasn't been committed by React yet
-          // at this point in the same synchronous handler (stale closure) —
-          // reading from state here would silently yield [] and blank out
-          // every pass-through column (Ref.CO, Amount, Plan Cost, etc.).
-          applyMapping(rows, detectedMap, builtExtraRawFields);
-        }
-      } catch (err: any) {
-        console.error(err);
-        setError(err.message || "An error occurred while parsing the file.");
+      if (isCsv) {
+        reader.readAsArrayBuffer(file);
+      } else {
+        reader.readAsArrayBuffer(file);
       }
-    };
-
-    reader.onerror = () => {
-      setError("File reading error.");
-    };
-
-    if (isCsv) {
-      reader.readAsArrayBuffer(file);
-    } else {
-      reader.readAsArrayBuffer(file);
-    }
+    });
   };
 
   const applyMapping = (rows: any[], currentMap: Record<string, string>, extraFieldsOverride?: Record<string, any>[]) => {
@@ -815,23 +822,28 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
     try {
       // Fetch the real sample spreadsheet (served from /public) and run it
       // through the exact same parsing pipeline as a manual upload
-      // (handleFileParse -> autoDetectMapping -> applyMapping). This is
-      // deliberately NOT a hand-maintained hardcoded dataset: a static
-      // snapshot silently drifts out of sync whenever the source file's
-      // column layout changes (as happened when the real export grew from
-      // a handful of columns to 83), producing subtly wrong or missing
-      // data with no error. Re-parsing the actual file on every click
-      // guarantees this button always reflects reality.
       const res = await fetch("/sample-data/KingWhale.xlsx");
       if (!res.ok) throw new Error(`Could not load sample file (HTTP ${res.status}).`);
       const blob = await res.blob();
       const file = new File([blob], "KingWhale.xlsx", {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       });
-      handleFileParse(file);
+      await handleFileParse(file);
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Could not load the sample dataset.");
+      console.warn("Primary fetch for sample file failed, using embedded fallback sample dataset:", err);
+      try {
+        const fallbackData = loadSamplePrEntries();
+        if (fallbackData && fallbackData.length > 0) {
+          onDataLoaded(fallbackData);
+          setShowMappingGui(false);
+          setError(null);
+        } else {
+          throw new Error("Fallback sample dataset is empty.");
+        }
+      } catch (fallbackErr: any) {
+        console.error("Fallback sample load failed:", fallbackErr);
+        setError(err.message || "Could not load the sample dataset.");
+      }
     } finally {
       setIsLoadingSample(false);
     }

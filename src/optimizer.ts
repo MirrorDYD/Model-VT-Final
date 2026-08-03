@@ -3724,16 +3724,19 @@ export function processAllScenarios(
 
   const results: ProcessedScenario[] = [s1Processed];
 
-  // Helper to generate combinations of array items
-  function getCombinations<T>(array: T[], r: number): T[][] {
-    if (r === 1) return array.map(a => [a]);
-    if (r === array.length) return [array];
+  // Helper to generate combinations of array items safely with a max cap
+  function getCombinations<T>(array: T[], r: number, max: number = 50): T[][] {
+    if (r <= 0 || array.length < r) return [];
+    if (r === 1) return array.slice(0, max).map(a => [a]);
+    if (r === array.length) return [array.slice()];
     const combinations: T[][] = [];
     for (let i = 0; i <= array.length - r; i++) {
+      if (combinations.length >= max) break;
       const head = array.slice(i, i + 1);
-      const tailCombinations = getCombinations(array.slice(i + 1), r - 1);
+      const tailCombinations = getCombinations(array.slice(i + 1), r - 1, max - combinations.length);
       for (const tail of tailCombinations) {
         combinations.push(head.concat(tail));
+        if (combinations.length >= max) break;
       }
     }
     return combinations;
@@ -3881,12 +3884,27 @@ export function findValidCombinationsForSingleRoute(
   const rawCombinations: { h: number; f: number; t: number; l: number; lclVol: number }[] = [];
   const maxH = Math.ceil(V / 65) + 1;
   const maxF = Math.ceil(V / 60) + 1;
-  const maxT = Math.ceil(V / 25) + 1;
 
   for (let h = 0; h <= maxH; h++) {
-    for (let f = 0; f <= maxF; f++) {
-      for (let t = 0; t <= maxT; t++) {
-        for (let l = 0; l <= 1; l++) {
+    const remH = V - h * 67.1;
+    const maxF_h = Math.min(maxF, Math.max(0, Math.ceil(remH / 62.1) + 1));
+    for (let f = 0; f <= maxF_h; f++) {
+      for (let l = 0; l <= 1; l++) {
+        // Direct O(1) computation of candidate t values instead of looping up to maxT
+        const candidateTs: number[] = [];
+        if (l === 0) {
+          const reqT = Math.max(0, Math.ceil((V - h * 67.1 - f * 62.1) / 27.1));
+          candidateTs.push(reqT);
+        } else {
+          // l === 1
+          const minT = Math.max(0, Math.ceil((V - 21.1 - h * 65 - f * 60) / 25));
+          const maxT_lcl = Math.max(0, Math.floor((V - 0.001 - h * 65 - f * 60) / 25));
+          for (let t = minT; t <= maxT_lcl; t++) {
+            candidateTs.push(t);
+          }
+        }
+
+        for (const t of candidateTs) {
           if (isValidCombo(h, f, t, l)) {
             if (isMinimal(h, f, t, l)) {
               const fclCapacity = h * 65 + f * 60 + t * 25;
