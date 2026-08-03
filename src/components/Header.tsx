@@ -72,7 +72,7 @@ export default function Header({ lang, setLang }: HeaderProps) {
             </button>
           </div>
 
-          <div className="flex flex-col items-start md:items-end col-span-1">
+          <div className="flex flex-col items-start md:items-end">
             <div className="bg-slate-50 border border-slate-200 px-3 py-1 rounded-full text-slate-600 text-xs font-mono flex items-center gap-1.5">
               <Calendar size={13} className="text-blue-500" />
               <span>{t("Time", lang)}: {currentDateStr} UTC</span>

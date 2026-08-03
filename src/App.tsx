@@ -566,24 +566,51 @@ export default function App() {
 
   // Set default selected scenario on data load
   const handleDataLoaded = (newEntries: PrEntry[]) => {
+    // Only treat this as a genuinely NEW dataset — and reset the settings
+    // that are specific to a dataset's own PR lines/groups — if the PR ids
+    // actually differ from what's currently loaded. Re-loading the exact
+    // same sample data (or re-uploading the same file) should not wipe out
+    // shipment date overrides, unit price fixes, or which scenario tab is
+    // selected; those are meant to persist (unit price overrides in
+    // particular are saved to localStorage specifically so they survive
+    // across sessions) and users lost real work from this being
+    // unconditional before.
+    const currentIds = new Set(entries.map(e => e.id));
+    const newIds = new Set(newEntries.map(e => e.id));
+    const isSameDataset = currentIds.size > 0 &&
+      currentIds.size === newIds.size &&
+      Array.from(newIds).every(id => currentIds.has(id));
+
     setEntries(newEntries);
 
-    // Unconditionally reset all Part 4 (review warning) adjustments and overrides on new file upload
-    setSelectedScenarioId("1"); // Reset selector
-    setShipmentDates([]);
-    setExcessOverrides([]);
-    setManualWeekOverrides({});
-    setManualMatrixQtyOverrides({});
-    setMcqMoqPreferences({});
-    setUnitPriceOverrides({});
-    setAcceptedFlags({});
+    if (!isSameDataset) {
+      setSelectedScenarioId("1"); // Reset selector
+      // Clear any manual shipment date overrides from a previous upload —
+      // they're specific to that dataset's own groups/gaps and would
+      // otherwise incorrectly override the newly-uploaded file's dates.
+      setShipmentDates([]);
+      setUnitPriceOverrides({});
 
-    // Clear associated localStorage overrides to start completely fresh
-    localStorage.removeItem("procurement_manual_week_overrides_v4");
-    localStorage.removeItem("procurement_manual_matrix_qty_overrides_v1");
-    localStorage.removeItem("procurement_mcq_moq_preferences_v1");
-    localStorage.removeItem("procurement_unit_price_overrides_v1");
-    localStorage.removeItem("procurement_accepted_flags_v1");
+      // Reset every other Part 4 ("Review warnings & export") manual
+      // adjustment as well, since all of it is tied to the specific PR
+      // lines/groups of the PREVIOUS dataset and has no valid meaning
+      // against a genuinely new upload — without this, a new file would
+      // silently inherit stale MCQ matrix edits, excess padding, and
+      // container reassignments from an unrelated dataset, and the user
+      // would have to remember to manually click "Reset Assignments"
+      // every time. This intentionally does NOT touch Part 2 ("Set rates
+      // & quotes") state — exchange rates, surcharge rules, imported
+      // FCL/LCL quotes, incoterm rules, and loading date rules are meant
+      // to persist across new file uploads, since they describe standing
+      // vendor/logistics agreements rather than anything specific to one
+      // dataset's PR lines. Those are only replaced when the user
+      // explicitly re-uploads new quotes/surcharges in that section.
+      setManualMatrixQtyOverrides({});
+      setExcessOverrides([]);
+      setManualWeekOverrides({});
+      setMcqMoqPreferences({});
+      setAcceptedFlags({});
+    }
 
     // Auto-detect settings from the uploaded entries if available
     if (newEntries.length > 0) {
