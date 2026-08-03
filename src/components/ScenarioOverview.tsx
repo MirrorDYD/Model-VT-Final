@@ -320,6 +320,7 @@ export default function ScenarioOverview({
                 <th className="py-3.5 px-4 text-right">{t("Material", lang)}</th>
                 <th className="py-3.5 px-4 text-right">{t("Freight", lang)}</th>
                 <th className="py-3.5 px-4 text-right">{t("Local", lang)}</th>
+                <th className="py-3.5 px-4 text-right">{t("Exwork", lang)}</th>
                 <th className="py-3.5 px-4 text-right">{t("Brokerage", lang)}</th>
                 <th className="py-3.5 px-4 text-right text-slate-800 font-bold bg-slate-100/50">{t("Shipping", lang)}</th>
                 <th className="py-3.5 px-4 text-right">{t("Carrying", lang)}</th>
@@ -372,10 +373,13 @@ export default function ScenarioOverview({
                       {formatMoney(sc.totalLocalCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
+                      {sc.totalExworkCost > 0 ? formatMoney(sc.totalExworkCost) : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-500">
                       {formatMoney(sc.totalBrokerageCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-800 font-bold bg-slate-50/40">
-                      {formatMoney(sc.totalFreightCost + sc.totalLocalCost + sc.totalBrokerageCost)}
+                      {formatMoney(sc.totalFreightCost + sc.totalLocalCost + sc.totalExworkCost + sc.totalBrokerageCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
                       {formatMoney(sc.totalCarryingCost)}

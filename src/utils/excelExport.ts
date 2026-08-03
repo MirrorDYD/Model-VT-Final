@@ -261,8 +261,9 @@ export function exportToExcel(
       "Material Cost (THB)": Math.round(sc.totalMaterialCost),
       "Freight Cost (THB)": Math.round(sc.totalFreightCost),
       "Local Port Cost (THB)": Math.round(sc.totalLocalCost),
+      "Exwork Cost (THB)": Math.round(sc.totalExworkCost || 0),
       "Brokerage Cost (THB)": Math.round(sc.totalBrokerageCost),
-      "Shipping Cost (THB)": Math.round(sc.totalFreightCost + sc.totalLocalCost + sc.totalBrokerageCost),
+      "Shipping Cost (THB)": Math.round(sc.totalFreightCost + sc.totalLocalCost + (sc.totalExworkCost || 0) + sc.totalBrokerageCost),
       "Carrying Cost (THB)": Math.round(sc.totalCarryingCost),
       "Opportunity Cost (THB)": Math.round(sc.totalOpportunityCost),
       "Surcharges MOQ+Rnd (THB)": Math.round((sc.totalMoqExcessCost || 0) + (sc.totalRoundingExcessCost || 0)),
@@ -289,6 +290,7 @@ export function exportToExcel(
       "Container Status": ship.container.status || "OK",
       "Freight Cost (THB)": Math.round(ship.freightCost),
       "Local Port Cost (THB)": Math.round(ship.localCost),
+      "Exwork Cost (THB)": Math.round(ship.exworkCost || 0),
       "Brokerage Cost (THB)": Math.round(ship.brokerageCost),
       "Total Landed Cost (THB)": Math.round(ship.totalLandedCost)
     };

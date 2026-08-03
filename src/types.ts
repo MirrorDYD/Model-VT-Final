@@ -251,6 +251,7 @@ export interface ShipmentGroup {
   freightCost: number;
   localCost: number;
   brokerageCost: number;
+  exworkCost: number;    // EXWORK (Origin Local) charges, broken out as their own line item (only non-zero when Incoterm is EXW)
   carryingCost: number;
   opportunityCost: number;
   moqSurchargeCost?: number;
@@ -303,6 +304,7 @@ export interface ProcessedScenario {
   totalFreightCost: number;
   totalLocalCost: number;
   totalBrokerageCost: number;
+  totalExworkCost: number;
   totalCarryingCost: number;
   totalOpportunityCost: number;
   totalLandedCost: number;

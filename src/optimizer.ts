@@ -64,10 +64,11 @@ export function getImportedFclCosts(
   isLcl: boolean = false,
   incotermRules?: IncotermRule[],
   weekPrs?: PrEntry[]
-): { freight: number, local: number, brokerage: number, determinedIncoterm?: string } {
+): { freight: number, local: number, brokerage: number, exwork: number, determinedIncoterm?: string } {
   let freight = 0;
   let local = 0;
   let brokerage = 0;
+  let exwork = 0;
 
   let determinedIncoterm = "FOB";
   if (weekPrs && weekPrs.length > 0) {
@@ -107,7 +108,7 @@ export function getImportedFclCosts(
   );
 
   if (matchingRows.length === 0) {
-    return { freight: 0, local: 0, brokerage: 0, determinedIncoterm };
+    return { freight: 0, local: 0, brokerage: 0, exwork: 0, determinedIncoterm };
   }
 
   // For CBM-tiered brokerage/local/etc. rate cards (e.g. "BY CBM (1-4)",
@@ -196,14 +197,16 @@ export function getImportedFclCosts(
 
     if (expenseType === "FREIGHT") {
       freight += totalCost;
-    } else if (expenseType === "LOCAL" || expenseType === "EXWORK") {
+    } else if (expenseType === "LOCAL") {
       local += totalCost;
+    } else if (expenseType === "EXWORK") {
+      exwork += totalCost;
     } else if (expenseType === "BROKERAGE") {
       brokerage += totalCost;
     }
   });
 
-  return { freight, local, brokerage, determinedIncoterm };
+  return { freight, local, brokerage, exwork, determinedIncoterm };
 }
 
 
@@ -733,9 +736,9 @@ export function calculateRouteCosts(
   container: ContainerConfig,
   routeQuote: RouteQuote,
   exchangeRates: Record<string, number> = {USD:35.0}
-): { freight: number, local: number, brokerage: number, vatApplied: boolean } {
+): { freight: number, local: number, brokerage: number, exwork: number, vatApplied: boolean } {
   if (totalCbm <= 0) {
-    return { freight: 0, local: 0, brokerage: 0, vatApplied: false };
+    return { freight: 0, local: 0, brokerage: 0, exwork: 0, vatApplied: false };
   }
 
   const { isLcl, num20gp, num40gp, num40hq } = container;
@@ -744,6 +747,7 @@ export function calculateRouteCosts(
   let freight = 0;
   let local = 0;
   let brokerage = 0;
+  let exwork = 0;
 
   // 1. Freight Cost calculation
   if (isLcl) {
@@ -893,7 +897,7 @@ export function calculateRouteCosts(
       } else if (fee.type === "allFcl") {
         feeValue = fee.amount * (num20gp + num40gp + num40hq);
       }
-      local += feeValue; // Exwork charges are processed as part of local port dues & logistics handling
+      exwork += feeValue; // Exwork (Origin Local) charges are tracked as their own ledger line item
     });
   }
 
@@ -903,6 +907,7 @@ export function calculateRouteCosts(
     freight: Math.round(freight * 100) / 100,
     local: Math.round(local * 100) / 100,
     brokerage: Math.round(brokerage * 100) / 100,
+    exwork: Math.round(exwork * 100) / 100,
     vatApplied
   };
 }
@@ -958,15 +963,26 @@ export function calculateContainers(
   }
 
   // FCL container selection:
+  // Rule: 20ft containers have NO elasticity tolerance — hard cap at 25 CBM.
+  //       40ft (60 CBM) and 40HQ (65 CBM) containers retain the +2.1 CBM elasticity per unit.
+  // Thresholds derived from those rules:
+  //   1x 20ft              : <= 25.00  (no tolerance)
+  //   1x 40ft              : <= 62.10  (60 + 2.1)
+  //   1x 40HQ              : <= 67.10  (65 + 2.1)
+  //   1x 40HQ + 1x 20ft    : <= 90.10  (65+25 + 2.1 for the 40HQ only)
+  //   1x 40HQ + 1x 40ft    : <= 129.20 (65+60 + 2×2.1)
+  //   2x 40HQ              : <= 134.20 (2×65 + 2×2.1)
+  //   2x 40HQ + 1x 20ft    : <= 159.20 (2×65+25 + 2×2.1 for the 40HQs)
+  //   2x 40HQ + 1x 40ft    : <= 196.30 (2×65+60 + 3×2.1)
+  //   3x 40HQ              : <= 201.30 (3×65 + 3×2.1)
   let num20gp = 0;
   let num40gp = 0;
   let num40hq = 0;
   let capacity = 0;
   let configName = "";
 
-  // Map to container configurations using 2.1 CBM elasticity
-  if (totalCbm <= 27.1) {
-    // 1x 20ft (limit 25, fits up to 27.1 with elasticity)
+  if (totalCbm <= 25.0) {
+    // 1x 20ft — hard cap, no elasticity
     num20gp = 1;
     capacity = 25;
     configName = "1x 20ft FCL";
@@ -980,37 +996,37 @@ export function calculateContainers(
     num40hq = 1;
     capacity = 65;
     configName = "1x 40HQ FCL";
-  } else if (totalCbm <= 94.2) {
-    // 1x 40HQ + 1x 20ft (limit 90, fits up to 94.2 with elasticity)
+  } else if (totalCbm <= 90.1) {
+    // 1x 40HQ + 1x 20ft (limit 90, elasticity only on the 40HQ = +2.1)
     num40hq = 1;
     num20gp = 1;
     capacity = 90;
     configName = "1x 40HQ + 1x 20ft FCL";
   } else if (totalCbm <= 129.2) {
-    // 1x 40HQ + 1x 40ft (limit 125, fits up to 129.2 with elasticity)
+    // 1x 40HQ + 1x 40ft (limit 125, elasticity on both 40s = +4.2 total)
     num40hq = 1;
     num40gp = 1;
     capacity = 125;
     configName = "1x 40HQ + 1x 40ft FCL";
   } else if (totalCbm <= 134.2) {
-    // 2x 40HQ (limit 130, fits up to 134.2 with elasticity)
+    // 2x 40HQ (limit 130, elasticity on both = +4.2)
     num40hq = 2;
     capacity = 130;
     configName = "2x 40HQ FCL";
-  } else if (totalCbm <= 161.3) {
-    // 2x 40HQ + 1x 20ft (limit 155, fits up to 161.3 with elasticity)
+  } else if (totalCbm <= 159.2) {
+    // 2x 40HQ + 1x 20ft (limit 155, elasticity only on the 2 40HQs = +4.2)
     num40hq = 2;
     num20gp = 1;
     capacity = 155;
     configName = "2x 40HQ + 1x 20ft FCL";
   } else if (totalCbm <= 196.3) {
-    // 2x 40HQ + 1x 40ft (limit 190, fits up to 196.3 with elasticity)
+    // 2x 40HQ + 1x 40ft (limit 190, elasticity on all three = +6.3)
     num40hq = 2;
     num40gp = 1;
     capacity = 190;
     configName = "2x 40HQ + 1x 40ft FCL";
   } else if (totalCbm <= 201.3) {
-    // 3x 40HQ (limit 195, fits up to 201.3 with elasticity)
+    // 3x 40HQ (limit 195, elasticity on all three = +6.3)
     num40hq = 3;
     capacity = 195;
     configName = "3x 40HQ FCL";
@@ -1021,8 +1037,8 @@ export function calculateContainers(
     configName = `${num40hq}x 40HQ FCL`;
   }
 
-  const numContainers = num20gp + num40gp + num40hq || 1;
-  const maxAllowedExcess = numContainers * 2.1;
+  // Elasticity applies only to 40ft and 40HQ units — 20ft has zero tolerance
+  const maxAllowedExcess = (num40gp + num40hq) * 2.1;
   const excessCbm = totalCbm - capacity > 0.005 ? totalCbm - capacity : 0;
   let status: "Acceptable" | "Review Needed" | "NOT Acceptable" = "Acceptable";
   let statusDetails = "";
@@ -1030,12 +1046,12 @@ export function calculateContainers(
   if (excessCbm === 0 || totalCbm <= capacity) {
     status = "Acceptable";
     statusDetails = `Fully acceptable. Fits within ${configName} capacity of ${capacity} CBM.`;
-  } else if (excessCbm <= maxAllowedExcess) {
+  } else if (maxAllowedExcess > 0 && excessCbm <= maxAllowedExcess) {
     status = "Review Needed";
-    statusDetails = `Squeezed (High Utilization / Elastic Capacity): Over container capacity by only ${excessCbm.toFixed(2)} CBM. Within the +${maxAllowedExcess.toFixed(1)} CBM elasticity limit. Acceptable pending physical loading review.`;
+    statusDetails = `Squeezed (High Utilization / Elastic Capacity): Over container capacity by only ${excessCbm.toFixed(2)} CBM. Within the +${maxAllowedExcess.toFixed(1)} CBM elasticity limit (40ft/40HQ only). Acceptable pending physical loading review.`;
   } else {
     status = "NOT Acceptable";
-    statusDetails = `Too much over the limit! Over capacity by ${excessCbm.toFixed(2)} CBM, which exceeds the +${maxAllowedExcess.toFixed(1)} CBM elasticity of ${configName} (${capacity} CBM).`;
+    statusDetails = `Too much over the limit! Over capacity by ${excessCbm.toFixed(2)} CBM, which exceeds the allowed tolerance of ${configName} (${capacity} CBM${maxAllowedExcess > 0 ? ` + ${maxAllowedExcess.toFixed(1)} CBM elasticity` : ", no elasticity for 20ft"}).`;
   }
 
   const freightCost = num20gp * fcl20Cost + num40gp * fcl40Cost + num40hq * fcl40Cost;
@@ -2805,7 +2821,11 @@ export function processScenario(
     // Material Cost is calculated in THB
     const totalMaterialCost = weekPrs.reduce((sum, p) => sum + (p.qty * getPrPriceTHB(p)), 0);
 
-    const force20ft = (w === 4 && prefer20ftForOctober) || !!scenarioDef.force20ftGPForAllWeeks;
+    // force20ft applies only to the standard (non-MM) cargo stream.
+    // The to-MM stream is a separate independent route and should not be
+    // forced into FCL just because the standard stream is — it picks its
+    // own optimal container type (including LCL when the volume is small).
+    const force20ftStandard = (w === 4 && prefer20ftForOctober) || !!scenarioDef.force20ftGPForAllWeeks;
 
     // Split standard and to-MM items
     const standardPrs = weekPrs.filter(p => !String(p.id || "").trim().startsWith("2"));
@@ -2816,10 +2836,10 @@ export function processScenario(
 
     // Standard calculations
     const standardRouteQuote = getActiveRouteQuoteForWeek(w);
-    const standardContainer = calculateContainers(standardCbm, standardRouteQuote, force20ft);
+    const standardContainer = calculateContainers(standardCbm, standardRouteQuote, force20ftStandard);
     
     const standardImportedShipFrom = getImportedShipFrom("1", shipFrom);
-    let standardCosts = { freight: 0, local: 0, brokerage: 0 };
+    let standardCosts = { freight: 0, local: 0, brokerage: 0, exwork: 0 };
     
     if (standardCbm > 0) {
       const hasStandardQuote = importedFclQuotes && importedFclQuotes.length > 0 && importedFclQuotes.some(row => 
@@ -2843,16 +2863,17 @@ export function processScenario(
         );
       } else {
         const standardCostsRaw = calculateRouteCosts(shipFrom, standardCbm, 1, standardContainer, standardRouteQuote, exchangeRates);
-        standardCosts = { freight: standardCostsRaw.freight, local: standardCostsRaw.local, brokerage: standardCostsRaw.brokerage };
+        standardCosts = { freight: standardCostsRaw.freight, local: standardCostsRaw.local, brokerage: standardCostsRaw.brokerage, exwork: standardCostsRaw.exwork };
       }
     }
 
     // to-MM calculations
     const toMmImportedShipFrom = getImportedShipFrom("2", shipFrom);
     const toMmRouteQuote = customRouteQuotes.find(q => (q.origin || "").toUpperCase().trim() === toMmImportedShipFrom.toUpperCase().trim()) || { ...standardRouteQuote, origin: toMmImportedShipFrom };
-    const toMmContainer = calculateContainers(toMmCbm, toMmRouteQuote, force20ft);
+    // to-MM stream: never force 20ft — let it pick LCL if the volume fits
+    const toMmContainer = calculateContainers(toMmCbm, toMmRouteQuote, false);
     
-    let toMmCosts = { freight: 0, local: 0, brokerage: 0 };
+    let toMmCosts = { freight: 0, local: 0, brokerage: 0, exwork: 0 };
     
     if (toMmCbm > 0) {
       const hasToMmQuote = importedFclQuotes && importedFclQuotes.length > 0 && importedFclQuotes.some(row => 
@@ -2876,7 +2897,7 @@ export function processScenario(
         );
       } else {
         const toMmCostsRaw = calculateRouteCosts(toMmImportedShipFrom, toMmCbm, 1, toMmContainer, toMmRouteQuote, exchangeRates);
-        toMmCosts = { freight: toMmCostsRaw.freight, local: toMmCostsRaw.local, brokerage: toMmCostsRaw.brokerage };
+        toMmCosts = { freight: toMmCostsRaw.freight, local: toMmCostsRaw.local, brokerage: toMmCostsRaw.brokerage, exwork: toMmCostsRaw.exwork };
       }
     }
 
@@ -2884,6 +2905,7 @@ export function processScenario(
     const combinedFreight = standardCosts.freight + toMmCosts.freight;
     const combinedLocal = standardCosts.local + toMmCosts.local;
     const combinedBrokerage = standardCosts.brokerage + toMmCosts.brokerage;
+    const combinedExwork = standardCosts.exwork + toMmCosts.exwork;
 
     // Carrying Cost and Opportunity Cost are the sum of individual PR costs (already in THB)
     const carryingCost = weekPrs.reduce((sum, p) => sum + (p.carryingCost || 0), 0);
@@ -2917,7 +2939,7 @@ export function processScenario(
       totalWarehouseRentCost += weekWarehouseRent;
     }
 
-    const totalLandedCost = totalMaterialCost + combinedFreight + combinedLocal + combinedBrokerage + carryingCost + opportunityCost + surchargeForWeek + weekWarehouseRent;
+    const totalLandedCost = totalMaterialCost + combinedFreight + combinedLocal + combinedBrokerage + combinedExwork + carryingCost + opportunityCost + surchargeForWeek + weekWarehouseRent;
 
     // Build the combined container configuration
     const container: ContainerConfig = {
@@ -2953,6 +2975,7 @@ export function processScenario(
       freightCost: combinedFreight,
       localCost: combinedLocal,
       brokerageCost: combinedBrokerage,
+      exworkCost: combinedExwork,
       carryingCost: Math.round(carryingCost * 100) / 100,
       opportunityCost: Math.round(opportunityCost * 100) / 100,
       moqSurchargeCost: surchargeForWeek,
@@ -2971,6 +2994,7 @@ export function processScenario(
   const totalFreightCost = shipmentGroups.reduce((sum, s) => sum + s.freightCost, 0);
   const totalLocalCost = shipmentGroups.reduce((sum, s) => sum + s.localCost, 0);
   const totalBrokerageCost = shipmentGroups.reduce((sum, s) => sum + s.brokerageCost, 0);
+  const totalExworkCost = shipmentGroups.reduce((sum, s) => sum + s.exworkCost, 0);
   const totalCarryingCost = shipmentGroups.reduce((sum, s) => sum + s.carryingCost, 0);
   const totalOpportunityCost = shipmentGroups.reduce((sum, s) => sum + s.opportunityCost, 0);
   const totalLandedCost = shipmentGroups.reduce((sum, s) => sum + s.totalLandedCost, 0);
@@ -3405,6 +3429,7 @@ export function processScenario(
     totalFreightCost: Math.round(totalFreightCost * 100) / 100,
     totalLocalCost: Math.round(totalLocalCost * 100) / 100,
     totalBrokerageCost: Math.round(totalBrokerageCost * 100) / 100,
+    totalExworkCost: Math.round(totalExworkCost * 100) / 100,
     totalCarryingCost: Math.round(totalCarryingCost * 100) / 100,
     totalOpportunityCost: Math.round(totalOpportunityCost * 100) / 100,
     totalLandedCost: Math.round(totalLandedCost * 100) / 100,
@@ -3497,8 +3522,8 @@ export function distributeContainerPool(
         excessCbm: Math.max(0, cbm - 19.0)
       };
     } else {
-      const numContainers = num20gp + num40gp + num40hq || 1;
-      const maxAllowedExcess = numContainers * 2.1;
+      // Elasticity applies only to 40ft and 40HQ — 20ft has zero tolerance
+      const maxAllowedExcess = (num40gp + num40hq) * 2.1;
       const excessCbm = cbm - capacity > 0.005 ? cbm - capacity : 0;
       let status: "Acceptable" | "Review Needed" | "NOT Acceptable" = "Acceptable";
       let statusDetails = "";
@@ -3512,12 +3537,12 @@ export function distributeContainerPool(
       if (excessCbm === 0 || cbm <= capacity) {
         status = "Acceptable";
         statusDetails = `Fully acceptable. Fits within ${configName} capacity of ${capacity} CBM.`;
-      } else if (excessCbm <= maxAllowedExcess) {
+      } else if (maxAllowedExcess > 0 && excessCbm <= maxAllowedExcess) {
         status = "Review Needed";
-        statusDetails = `Squeezed (High Utilization / Elastic Capacity): Over container capacity by only ${excessCbm.toFixed(2)} CBM. Within the +${maxAllowedExcess.toFixed(1)} CBM elasticity limit. Acceptable pending physical loading review.`;
+        statusDetails = `Squeezed (High Utilization / Elastic Capacity): Over container capacity by only ${excessCbm.toFixed(2)} CBM. Within the +${maxAllowedExcess.toFixed(1)} CBM elasticity limit (40ft/40HQ only). Acceptable pending physical loading review.`;
       } else {
         status = "NOT Acceptable";
-        statusDetails = `Too much over the limit! Over capacity by ${excessCbm.toFixed(2)} CBM, which exceeds the +${maxAllowedExcess.toFixed(1)} CBM elasticity of ${configName} (${capacity} CBM).`;
+        statusDetails = `Too much over the limit! Over capacity by ${excessCbm.toFixed(2)} CBM, which exceeds the allowed tolerance of ${configName} (${capacity} CBM${maxAllowedExcess > 0 ? ` + ${maxAllowedExcess.toFixed(1)} CBM elasticity` : ", no elasticity for 20ft"}).`;
       }
 
       const freightCost = num20gp * fcl20Cost + num40gp * fcl40Cost + num40hq * fcl40Cost;
@@ -3847,6 +3872,7 @@ export interface FleetCombination {
   freightCost: number;
   localCost: number;
   brokerageCost: number;
+  exworkCost: number;
   warehouseRent: number;
   totalLogisticsCost: number;
 }
@@ -3882,14 +3908,15 @@ export function findValidCombinationsForSingleRoute(
   const routeQuote = matchRouteQuote(shipFrom, customRouteQuotes);
   const USD_TO_THB = exchangeRates["USD"] || 35.0;
 
+  // 20ft has NO elasticity (hard cap 25 CBM); 40ft and 40HQ each get +2.1 CBM elasticity.
   const isValidCombo = (h: number, f: number, t: number, l: number): boolean => {
-    const numContainers = h + f + t;
     const baseCapacity = h * 65 + f * 60 + t * 25;
-    const elasticity = numContainers * 2.1;
+    // Only 40ft (f) and 40HQ (h) contribute to elasticity; 20ft (t) does not
+    const elasticity = (h + f) * 2.1;
     const fclCapacity = baseCapacity + elasticity;
     
     if (l === 0) {
-      return numContainers > 0 && fclCapacity >= V;
+      return (h + f + t) > 0 && fclCapacity >= V;
     } else {
       const remaining = V - baseCapacity;
       return remaining > 0 && remaining <= 21.1;
@@ -3913,10 +3940,12 @@ export function findValidCombinationsForSingleRoute(
     const maxF_h = Math.min(maxF, Math.max(0, Math.ceil(remH / 62.1) + 1));
     for (let f = 0; f <= maxF_h; f++) {
       for (let l = 0; l <= 1; l++) {
-        // Direct O(1) computation of candidate t values instead of looping up to maxT
+        // Direct O(1) computation of candidate t values
+        // 20ft has no elasticity, so effective 20ft capacity = exactly 25 CBM each
         const candidateTs: number[] = [];
         if (l === 0) {
-          const reqT = Math.max(0, Math.ceil((V - h * 67.1 - f * 62.1) / 27.1));
+          const remAfterLarge = V - h * 67.1 - f * 62.1;
+          const reqT = Math.max(0, Math.ceil(remAfterLarge / 25.0));
           candidateTs.push(reqT);
         } else {
           // l === 1
@@ -3946,6 +3975,7 @@ export function findValidCombinationsForSingleRoute(
     let freight = 0;
     let local = 0;
     let brokerage = 0;
+    let exwork = 0;
     let warehouseRent = 0;
 
     // FCL portion
@@ -3970,6 +4000,7 @@ export function findValidCombinationsForSingleRoute(
         freight += fclCosts.freight;
         local += fclCosts.local;
         brokerage += fclCosts.brokerage;
+        exwork += fclCosts.exwork;
       } else {
         const fclContainer: ContainerConfig = {
           num20gp: t,
@@ -3984,6 +4015,7 @@ export function findValidCombinationsForSingleRoute(
         freight += fclCosts.freight;
         local += fclCosts.local;
         brokerage += fclCosts.brokerage;
+        exwork += fclCosts.exwork;
       }
 
       if (warehouseStuckDays > 0) {
@@ -4020,6 +4052,7 @@ export function findValidCombinationsForSingleRoute(
         freight += lclCosts.freight;
         local += lclCosts.local;
         brokerage += lclCosts.brokerage;
+        exwork += lclCosts.exwork;
       } else {
         const lclContainer: ContainerConfig = {
           num20gp: 0,
@@ -4034,6 +4067,7 @@ export function findValidCombinationsForSingleRoute(
         freight += lclCosts.freight;
         local += lclCosts.local;
         brokerage += lclCosts.brokerage;
+        exwork += lclCosts.exwork;
       }
 
       if (warehouseStuckDays > 0) {
@@ -4045,7 +4079,7 @@ export function findValidCombinationsForSingleRoute(
       }
     }
 
-    const totalLogisticsCost = freight + local + brokerage + warehouseRent;
+    const totalLogisticsCost = freight + local + brokerage + exwork + warehouseRent;
 
     return {
       num40hq: h,
@@ -4057,6 +4091,7 @@ export function findValidCombinationsForSingleRoute(
       freightCost: freight,
       localCost: local,
       brokerageCost: brokerage,
+      exworkCost: exwork,
       warehouseRent,
       totalLogisticsCost
     };
@@ -4138,6 +4173,7 @@ export function findValidCombinations(
           freightCost: sc.freightCost + tc.freightCost,
           localCost: sc.localCost + tc.localCost,
           brokerageCost: sc.brokerageCost + tc.brokerageCost,
+          exworkCost: sc.exworkCost + tc.exworkCost,
           warehouseRent: sc.warehouseRent + tc.warehouseRent,
           totalLogisticsCost: sc.totalLogisticsCost + tc.totalLogisticsCost
         });

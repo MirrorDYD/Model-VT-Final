@@ -1699,6 +1699,14 @@ export default function ScenarioInspector({
                         <span>{t("Local Port Dues & Delivery:", lang)}</span>
                         <span className="font-mono text-slate-700">{formatMoney(ship.localCost)}</span>
                       </div>
+                      {ship.exworkCost > 0 && (
+                        <div className="flex justify-between text-slate-500">
+                          <span className="flex items-center gap-1">
+                            {t("Exwork (Origin Local):", lang)}
+                          </span>
+                          <span className="font-mono text-slate-700">{formatMoney(ship.exworkCost)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-slate-500">
                         <span>{t("Customs Brokerage Dues:", lang)}</span>
                         <span className="font-mono text-slate-700">{formatMoney(ship.brokerageCost)}</span>
