@@ -382,7 +382,7 @@ export default function ScenarioInspector({
           const colorAlert = scenario.moqAlerts.find(a => a.colorCode === flag.colorCode);
           const colorEntries = scenario.processedEntries.filter(e => e.colorCode === flag.colorCode);
           const colorVendor = colorEntries[0]?.vendor;
-          const limit = colorAlert?.targetMoq || getEffectiveMcqForColor(flag.colorCode, colorVendor, surchargeRules, scenario.mcqThreshold || 500);
+          const limit = colorAlert?.targetMoq || getEffectiveMcqForColor(flag.colorCode, colorVendor, surchargeRules, scenario.mcqThreshold ?? 500);
 
           const itemDescriptionsForColor = Array.from(new Set(colorEntries.map(e => e.itemDescription || e.itemCode)));
           const colorWeekEffectiveTotal = itemDescriptionsForColor.reduce((sum, itemDescription) => {
@@ -1069,12 +1069,12 @@ export default function ScenarioInspector({
             <Info size={18} className="text-blue-600 shrink-0 mt-0.5" />
             {lang === "TH" ? (
               <div>
-                <span className="text-blue-900 font-bold">หลักการทำงานของตารางเมทริกซ์นี้:</span> รายการทั้งหมดจาก Syteline จะถูกจัดกลุ่มตามรหัสสีและวันที่ขนส่ง หากปริมาณรวมของสีใดสีหนึ่งต่ำกว่าเกณฑ์ขั้นต่ำ MCQ (เช่น {scenario.mcqThreshold || 500} หลา) การจัดส่งในรอบนั้นจะถูก<span className="text-amber-700 font-semibold"> ไฮไลต์สีส้มแจ้งเตือนโดยอัตโนมัติ</span> และปริมาณจะถูก<span className="text-blue-600 font-semibold"> ดึงไปจัดส่งเร็วขึ้น</span> (รวมเข้ากับสัปดาห์ก่อนหน้า) หรือปัดเศษเพิ่มขึ้นในรอบแรกพร้อมคิด<span className="text-emerald-600 font-semibold"> ค่าธรรมเนียมส่วนต่างขั้นต่ำในสัปดาห์ที่ 1</span> เพื่อหลีกเลี่ยงค่าปรับยอดสั่งสั่งผลิตต่ำกว่าเกณฑ์ขั้นต่ำจากโรงงาน
+                <span className="text-blue-900 font-bold">หลักการทำงานของตารางเมทริกซ์นี้:</span> รายการทั้งหมดจาก Syteline จะถูกจัดกลุ่มตามรหัสสีและวันที่ขนส่ง หากปริมาณรวมของสีใดสีหนึ่งต่ำกว่าเกณฑ์ขั้นต่ำ MCQ (เช่น {scenario.mcqThreshold ?? 500} หลา) การจัดส่งในรอบนั้นจะถูก<span className="text-amber-700 font-semibold"> ไฮไลต์สีส้มแจ้งเตือนโดยอัตโนมัติ</span> และปริมาณจะถูก<span className="text-blue-600 font-semibold"> ดึงไปจัดส่งเร็วขึ้น</span> (รวมเข้ากับสัปดาห์ก่อนหน้า) หรือปัดเศษเพิ่มขึ้นในรอบแรกพร้อมคิด<span className="text-emerald-600 font-semibold"> ค่าธรรมเนียมส่วนต่างขั้นต่ำในสัปดาห์ที่ 1</span> เพื่อหลีกเลี่ยงค่าปรับยอดสั่งสั่งผลิตต่ำกว่าเกณฑ์ขั้นต่ำจากโรงงาน
               </div>
             ) : (
               <div>
                 <span className="text-blue-900 font-bold">How this matrix works:</span> All Syteline entries are grouped by color code and shipment date.
-                If a color's total quantity falls below the MCQ threshold (e.g., {scenario.mcqThreshold || 500} YD), that column's shipment is automatically
+                If a color's total quantity falls below the MCQ threshold (e.g., {scenario.mcqThreshold ?? 500} YD), that column's shipment is automatically
                 <span className="text-amber-700 font-semibold"> highlighted</span> and the quantity is either
                 <span className="text-blue-600 font-semibold"> moved earlier</span> (consolidated to previous week) or met with a
                 <span className="text-emerald-600 font-semibold"> shipment 1 rounding surcharge</span> to avoid factory minimum penalties.
@@ -1106,7 +1106,7 @@ export default function ScenarioInspector({
                   const siblingItems = colorItemPairs.filter(p => p.colorCode === colorCode);
                   const colorVendor = itemColorEntries[0]?.vendor || entries?.find(e => e.colorCode === colorCode)?.vendor;
                   const colorAlert = scenario.moqAlerts.find(a => a.colorCode === colorCode);
-                  const limit = colorAlert?.targetMoq || getEffectiveMcqForColor(colorCode, colorVendor, surchargeRules, scenario.mcqThreshold || 500);
+                  const limit = colorAlert?.targetMoq || getEffectiveMcqForColor(colorCode, colorVendor, surchargeRules, scenario.mcqThreshold ?? 500);
 
                   return (
                     <tr key={`${itemDescription}__${colorCode}`} className="hover:bg-slate-50">
@@ -1250,7 +1250,7 @@ export default function ScenarioInspector({
 
           {/* Per-Shipment MOQ Status */}
           {(() => {
-            const orderMoq = scenario.moqThreshold || 3000;
+            const orderMoq = scenario.moqThreshold ?? 3000;
             const shipmentWeeks = Array.from(new Set(scenario.processedEntries.map(p => p.assignedWeek))).sort((a, b) => a - b);
             const shipmentSummaries = shipmentWeeks.map(w => {
               const shipmentQty = scenario.processedEntries

@@ -638,10 +638,14 @@ export default function App() {
         setShipFrom(mostCommonShipFrom);
       }
 
-      if (firstEntry.moq && firstEntry.moq > 0) {
+      // A PR can legitimately state an MOQ/MCQ of 0 (meaning "no minimum"),
+      // and that must be respected rather than silently ignored in favor of
+      // whatever default was left over from a previous file -- a truthy
+      // check (`firstEntry.moq && ...`) treats 0 the same as "not provided".
+      if (firstEntry.moq !== undefined && firstEntry.moq !== null) {
         setDefaultMoq(firstEntry.moq);
       }
-      if (firstEntry.mcq && firstEntry.mcq > 0) {
+      if (firstEntry.mcq !== undefined && firstEntry.mcq !== null) {
         setDefaultMcq(firstEntry.mcq);
       }
 

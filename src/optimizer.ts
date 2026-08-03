@@ -25,8 +25,31 @@ export function getImportedShipFrom(prId: string, baseShipFrom: string): string 
   } else if (base.includes("SHANGHAI") || base.includes("CHINA")) {
     return startsWith2 ? "China Shanghai to MM" : "China Shanghai";
   }
-  
-  return startsWith2 ? `${baseShipFrom} to MM` : baseShipFrom;
+
+  // Fallback for any ship-from location not in the known-port list above
+  // (e.g. "Japan Osaka to MM", "Sweden", or any future new origin introduced
+  // by a vendor/quote upload). Some source systems already bake a "to MM"
+  // suffix into the raw ship-from string itself, so for a requisition whose
+  // id starts with "2" we must NOT blindly append " to MM" again -- doing so
+  // previously produced a doubled string (e.g. "Japan Osaka to MM to MM")
+  // that could never match any uploaded quote row's shipFrom. That silent
+  // mismatch made the app fall back to un-quoted default route costs, which
+  // don't know about Incoterms at all (so e.g. CIF freight was never zeroed
+  // out) and don't use the vendor's actual per-shipment LOCAL / BROKERAGE
+  // quote amounts. Stripping any existing "to MM" suffix first and
+  // re-applying it exactly once keeps this idempotent regardless of whether
+  // the raw source data already included it.
+  const trimmedBase = (baseShipFrom || "").trim();
+  const toMmSuffixMatch = trimmedBase.match(/\s+to\s+mm\s*$/i);
+  const strippedBase = toMmSuffixMatch
+    ? trimmedBase.slice(0, trimmedBase.length - toMmSuffixMatch[0].length).trim()
+    : trimmedBase;
+  const alreadyToMm = !!toMmSuffixMatch;
+
+  if (startsWith2 || alreadyToMm) {
+    return `${strippedBase} to MM`;
+  }
+  return strippedBase;
 }
 
 export function getImportedFclCosts(
