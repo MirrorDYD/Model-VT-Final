@@ -1938,23 +1938,29 @@ export default function ScenarioInspector({
                     <div className="space-y-2 border-t border-slate-200 pt-4 text-xs mb-4">
                       <div className="flex justify-between text-slate-500">
                         <span>{t("Ocean Freight Tariff:", lang)}</span>
-                        <span className="font-mono text-slate-700">{formatMoney(ship.freightCost)}</span>
+                        <span className="font-mono text-slate-700">
+                          {ship.freightCost > 0 ? formatMoney(ship.freightCost) : <span className="text-slate-300">—</span>}
+                        </span>
                       </div>
                       <div className="flex justify-between text-slate-500">
                         <span>{t("Local Port Dues & Delivery:", lang)}</span>
-                        <span className="font-mono text-slate-700">{formatMoney(ship.localCost)}</span>
+                        <span className="font-mono text-slate-700">
+                          {ship.localCost > 0 ? formatMoney(ship.localCost) : <span className="text-slate-300">—</span>}
+                        </span>
                       </div>
-                      {ship.exworkCost > 0 && (
-                        <div className="flex justify-between text-slate-500">
-                          <span className="flex items-center gap-1">
-                            {t("Exwork (Origin Local):", lang)}
-                          </span>
-                          <span className="font-mono text-slate-700">{formatMoney(ship.exworkCost)}</span>
-                        </div>
-                      )}
+                      <div className="flex justify-between text-slate-500">
+                        <span className="flex items-center gap-1">
+                          {t("Exwork (Origin Local):", lang)}
+                        </span>
+                        <span className="font-mono text-slate-700">
+                          {ship.exworkCost > 0 ? formatMoney(ship.exworkCost) : <span className="text-slate-300">—</span>}
+                        </span>
+                      </div>
                       <div className="flex justify-between text-slate-500">
                         <span>{t("Customs Brokerage Dues:", lang)}</span>
-                        <span className="font-mono text-slate-700">{formatMoney(ship.brokerageCost)}</span>
+                        <span className="font-mono text-slate-700">
+                          {ship.brokerageCost > 0 ? formatMoney(ship.brokerageCost) : <span className="text-slate-300">—</span>}
+                        </span>
                       </div>
                       <div className="flex justify-between text-slate-500 group relative">
                         <span className="flex items-center gap-1 cursor-help border-b border-dotted border-slate-400">

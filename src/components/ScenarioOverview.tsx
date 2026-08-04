@@ -60,7 +60,7 @@ export default function ScenarioOverview({
     id: sc.id,
     name: `Scen ${sc.id}`,
     "Material Cost": sc.totalMaterialCost / rate,
-    "Shipping Cost": (sc.totalFreightCost + sc.totalLocalCost + sc.totalBrokerageCost) / rate,
+    "Shipping Cost": (sc.totalFreightCost + sc.totalLocalCost + sc.totalExworkCost + sc.totalBrokerageCost) / rate,
     "Carrying Cost": sc.totalCarryingCost / rate,
     "Opportunity Cost": sc.totalOpportunityCost / rate,
     "MOQ Surcharge": sc.totalMoqExcessCost / rate,
@@ -102,7 +102,7 @@ export default function ScenarioOverview({
   const chartDataNoMaterial = scenarios.map(sc => ({
     id: sc.id,
     name: `Scen ${sc.id}`,
-    "Shipping Cost": (sc.totalFreightCost + sc.totalLocalCost + sc.totalBrokerageCost) / rate,
+    "Shipping Cost": (sc.totalFreightCost + sc.totalLocalCost + sc.totalExworkCost + sc.totalBrokerageCost) / rate,
     "Carrying Cost": sc.totalCarryingCost / rate,
     "Opportunity Cost": sc.totalOpportunityCost / rate,
     "MOQ Surcharge": sc.totalMoqExcessCost / rate,
@@ -127,7 +127,7 @@ export default function ScenarioOverview({
             </div>
           ))}
           <div className="border-t border-slate-100 mt-2 pt-1.5 flex justify-between gap-6 font-bold text-emerald-600">
-            <span>{t("Shipping", lang)} + {t("Carrying", lang)} + {t("Opportunity", lang)} + {t("Surcharges (MOQ/MCQ+Rnd)", lang)}:</span>
+            <span>{t("Shipping", lang)} + {t("Carrying", lang)} + {t("Opportunity", lang)} + {t("Surcharges", lang)}:</span>
             <span className="font-mono">
               {currency === "USD" ? `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${Math.round(total).toLocaleString()} THB`}
             </span>
@@ -323,7 +323,7 @@ export default function ScenarioOverview({
                 <Bar dataKey="Shipping Cost" name={t("Shipping", lang)} stackId="a" fill="#2563eb" />
                 <Bar dataKey="Carrying Cost" name={t("Carrying", lang)} stackId="a" fill="#8b5cf6" />
                 <Bar dataKey="Opportunity Cost" name={t("Opportunity", lang)} stackId="a" fill="#06b6d4" />
-                <Bar dataKey="MOQ Surcharge" name={t("Surcharges (MOQ/MCQ+Rnd)", lang)} stackId="a" fill="#f43f5e" />
+                <Bar dataKey="MOQ Surcharge" name={t("Surcharges", lang)} stackId="a" fill="#f43f5e" />
                 <Bar dataKey="Rounding Excess" name="Rounding Surcharge" stackId="a" fill="#f59e0b" />
               </BarChart>
             </ResponsiveContainer>
@@ -351,7 +351,7 @@ export default function ScenarioOverview({
                 <Bar dataKey="Shipping Cost" name={t("Shipping", lang)} stackId="a" fill="#2563eb" />
                 <Bar dataKey="Carrying Cost" name={t("Carrying", lang)} stackId="a" fill="#8b5cf6" />
                 <Bar dataKey="Opportunity Cost" name={t("Opportunity", lang)} stackId="a" fill="#06b6d4" />
-                <Bar dataKey="MOQ Surcharge" name={t("Surcharges (MOQ/MCQ+Rnd)", lang)} stackId="a" fill="#f43f5e" />
+                <Bar dataKey="MOQ Surcharge" name={t("Surcharges", lang)} stackId="a" fill="#f43f5e" />
                 <Bar dataKey="Rounding Excess" name="Rounding Surcharge" stackId="a" fill="#f59e0b" />
               </BarChart>
             </ResponsiveContainer>
@@ -384,7 +384,7 @@ export default function ScenarioOverview({
                 <th className="py-3.5 px-4 text-right text-slate-800 font-bold bg-slate-100/50">{t("Shipping", lang)}</th>
                 <th className="py-3.5 px-4 text-right">{t("Carrying", lang)}</th>
                 <th className="py-3.5 px-4 text-right">{t("Opportunity", lang)}</th>
-                <th className="py-3.5 px-4 text-right">{t("Surcharges (MOQ/MCQ+Rnd)", lang)}</th>
+                <th className="py-3.5 px-4 text-right">{t("Surcharges", lang)}</th>
                 <th className="py-3.5 px-4 text-right text-blue-600 font-bold">{t("True Landed Cost", lang)}</th>
                 <th className="py-3.5 px-4 text-right text-emerald-600 font-bold bg-emerald-50/30">{t("Diff vs Scen 1", lang)}</th>
                 <th className="py-3.5 px-4">{t("Containers Used", lang)}</th>
@@ -447,7 +447,7 @@ export default function ScenarioOverview({
                       {formatMoney(sc.totalOpportunityCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {formatMoney(sc.totalMoqExcessCost + sc.totalRoundingExcessCost)}
+                      {sc.totalMoqExcessCost > 0 ? formatMoney(sc.totalMoqExcessCost) : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-bold text-blue-600">
                       {formatMoney(sc.totalLandedCost)}
