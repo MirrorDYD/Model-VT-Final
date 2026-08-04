@@ -5,7 +5,7 @@ import AdvancedSettings from "./components/AdvancedSettings";
 import ScenarioOverview from "./components/ScenarioOverview";
 import ScenarioInspector from "./components/ScenarioInspector";
 import StepSidebar from "./components/StepSidebar";
-import { PrEntry, ProcessedScenario, RouteQuote, ExcessMcqOverride, WarehouseRentConfig, SurchargeRule, ImportedFclQuote, IncotermRule, LoadingDateRule } from "./types";
+import { PrEntry, ProcessedScenario, RouteQuote, ExcessMcqOverride, WarehouseRentConfig, SurchargeRule, ImportedFclQuote, IncotermRule, LoadingDateRule, ContainerOverride } from "./types";
 import { processAllScenarios, getDefaultRouteQuotes, calculateFleetScenarios } from "./optimizer";
 import { getDefaultImportedFclQuotes } from "./defaultFclQuotes";
 import { getDefaultIncotermRules } from "./defaultIncoterms";
@@ -206,6 +206,58 @@ export default function App() {
     localStorage.setItem("procurement_incoterm_rules_v1", JSON.stringify(incotermRules));
   }, [incotermRules]);
 
+  // Vendor codes actually present in the currently loaded PR data (the
+  // uploaded file, or the sample data) — used to keep the Incoterm-related
+  // displays below scoped to what's actually in use, rather than showing
+  // every vendor that's ever had a rule saved (defaults, or leftovers from
+  // a previously loaded file, persist in incotermRules across uploads).
+  const activeVendorCodes = useMemo(() => {
+    const set = new Set<string>();
+    entries.forEach(e => {
+      if (e.vendor) set.add(e.vendor.toUpperCase().trim());
+    });
+    return set;
+  }, [entries]);
+
+  // Only the Incoterm rules for vendors that are actually in the currently
+  // loaded PR data — used solely by the "Ship From & Incoterm" reference
+  // panel, so it shows what's actually in play right now rather than every
+  // vendor that's ever had a rule saved. The conflict check above
+  // deliberately does NOT use this — it checks the full rules list.
+  const activeIncotermRules = useMemo(() => {
+    if (activeVendorCodes.size === 0) return incotermRules;
+    return incotermRules.filter(r => r.vendorCode && activeVendorCodes.has(r.vendorCode.toUpperCase().trim()));
+  }, [incotermRules, activeVendorCodes]);
+
+  // Vendors that currently have more than one distinct Incoterm across
+  // their active rules in the table below — e.g. one row says FOB, another
+  // says EXW/CIF for the same vendor code (whether that came from
+  // conflicting data in the uploaded PR file, or from someone adding a
+  // second manual rule for a vendor that already has one). Derived live
+  // from the FULL incotermRules list — deliberately NOT scoped to vendors
+  // in the currently loaded file, since a conflicting rule is worth
+  // flagging regardless of whether that vendor's PR happens to be loaded
+  // right now (e.g. reviewing/cleaning up the rules table itself). Keyed by
+  // vendor code alone (not vendor+origin) so it still catches the conflict
+  // even when "Ship From" differs or is blank between the rows.
+  const incotermConflicts = useMemo(() => {
+    const vendorIncotermValues: Record<string, Set<string>> = {};
+    incotermRules.forEach(rule => {
+      if (!rule.vendorCode || !rule.incoterm) return;
+      const vendorKey = rule.vendorCode.toUpperCase().trim();
+      if (!vendorIncotermValues[vendorKey]) vendorIncotermValues[vendorKey] = new Set();
+      vendorIncotermValues[vendorKey].add(rule.incoterm.toUpperCase().trim());
+    });
+
+    const conflicts: Array<{ vendorCode: string; incoterms: string[] }> = [];
+    Object.entries(vendorIncotermValues).forEach(([vendorCode, values]) => {
+      if (values.size > 1) {
+        conflicts.push({ vendorCode, incoterms: Array.from(values).sort() });
+      }
+    });
+    return conflicts;
+  }, [incotermRules]);
+
   const [loadingDateRules, setLoadingDateRules] = useState<LoadingDateRule[]>(() => {
     const defaults = getDefaultLoadingDateRules();
     const saved = localStorage.getItem("procurement_loading_date_rules_v1");
@@ -310,6 +362,39 @@ export default function App() {
     });
   };
 
+  // Manual container mix overrides set from the Shipment Containers & Bins
+  // tab. Keyed per scenario, then per shipment week (as a string key).
+  const [containerOverrides, setContainerOverrides] = useState<Record<string, Record<string, ContainerOverride>>>(() => {
+    const saved = localStorage.getItem("procurement_container_overrides_v1");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing saved container overrides", e);
+      }
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem("procurement_container_overrides_v1", JSON.stringify(containerOverrides));
+  }, [containerOverrides]);
+
+  const handleContainerOverrideChange = (scenarioId: string, week: number, override: ContainerOverride | null) => {
+    setContainerOverrides(prev => {
+      const scenarioOverrides = { ...(prev[scenarioId] || {}) };
+      if (override === null) {
+        delete scenarioOverrides[`${week}`];
+      } else {
+        scenarioOverrides[`${week}`] = override;
+      }
+      return {
+        ...prev,
+        [scenarioId]: scenarioOverrides
+      };
+    });
+  };
+
   // Manual fixes for items flagged with a $0 unit price. Flat (not
   // per-scenario) since a price correction is a data fix that should
   // apply uniformly across every scenario, not just the one being viewed.
@@ -351,6 +436,11 @@ export default function App() {
       return copy;
     });
     setManualMatrixQtyOverrides(prev => {
+      const copy = { ...prev };
+      delete copy[selectedScenarioId];
+      return copy;
+    });
+    setContainerOverrides(prev => {
       const copy = { ...prev };
       delete copy[selectedScenarioId];
       return copy;
@@ -462,7 +552,8 @@ export default function App() {
       manualMatrixQtyOverrides,
       unitPriceOverrides,
       mcqMoqPreferences,
-      acceptedFlags
+      acceptedFlags,
+      containerOverrides
     );
 
     return {
@@ -476,7 +567,7 @@ export default function App() {
     enablePullForward, prefer20ftForOctober, shipmentDates, customQuotes, 
     warehouseStuckDays, warehouseDailyRent, exchangeRates,
     mcqSurchargeUSD, mcqSurchargeType, excessOverrides, vendorSurcharges, manualWeekOverrides, surchargeRules,
-    importedFclQuotes, incotermRules, defaultMcq, loadingDateRules, previouslyExistingContainers, manualMatrixQtyOverrides, unitPriceOverrides, mcqMoqPreferences, acceptedFlags
+    importedFclQuotes, incotermRules, defaultMcq, loadingDateRules, previouslyExistingContainers, manualMatrixQtyOverrides, unitPriceOverrides, mcqMoqPreferences, acceptedFlags, containerOverrides
   ]);
 
   const { scenarios, D0, maxWeeks, computedMaxWeeks } = optimizationResults;
@@ -583,6 +674,7 @@ export default function App() {
     setManualWeekOverrides({});
     setMcqMoqPreferences({});
     setAcceptedFlags({});
+    setContainerOverrides({});
 
     // Explicitly clean up corresponding localStorage keys to start completely fresh
     localStorage.removeItem("procurement_manual_week_overrides_v4");
@@ -590,6 +682,7 @@ export default function App() {
     localStorage.removeItem("procurement_mcq_moq_preferences_v1");
     localStorage.removeItem("procurement_unit_price_overrides_v1");
     localStorage.removeItem("procurement_accepted_flags_v1");
+    localStorage.removeItem("procurement_container_overrides_v1");
 
     // Auto-detect settings from the uploaded entries if available
     if (newEntries.length > 0) {
@@ -649,7 +742,10 @@ export default function App() {
         setDefaultMcq(firstEntry.mcq);
       }
 
-      // Auto-detect Incoterms
+      // Auto-detect Incoterms (per vendor+origin) — this drives the actual
+      // cost-allocation rule: first value seen per vendor+origin wins.
+      // (Any resulting cross-vendor conflicts are now surfaced live via the
+      // incotermConflicts memo above, derived from incotermRules itself.)
       const newIncoterms: Record<string, string> = {};
       newEntries.forEach(entry => {
         if (entry.vendor && entry.shipFrom && entry.incoterm) {
@@ -659,7 +755,7 @@ export default function App() {
           }
         }
       });
-      
+
       if (Object.keys(newIncoterms).length > 0) {
         setIncotermRules(prev => {
           let updated = [...prev];
@@ -839,6 +935,8 @@ export default function App() {
                       lang={lang}
                       currency={currency}
                       exchangeRates={exchangeRates}
+                      incotermConflicts={incotermConflicts}
+                      incotermRules={activeIncotermRules}
                     />
                   </div>
                 )}
@@ -857,6 +955,7 @@ export default function App() {
                       hasManualOverrides={
                         Object.keys(manualWeekOverrides[selectedScenario.id] || {}).length > 0 ||
                         Object.keys(manualMatrixQtyOverrides[selectedScenario.id] || {}).length > 0 ||
+                        Object.keys(containerOverrides[selectedScenario.id] || {}).length > 0 ||
                         Object.keys(mcqMoqPreferences).length > 0 ||
                         Object.keys(unitPriceOverrides).length > 0 ||
                         excessOverrides.length > 0 ||
@@ -864,6 +963,8 @@ export default function App() {
                       }
                       matrixQtyOverrides={manualMatrixQtyOverrides[selectedScenario.id] || {}}
                       onMatrixQtyChange={(itemDescription, colorCode, week, value) => handleMatrixQtyChange(selectedScenario.id, itemDescription, colorCode, week, value)}
+                      containerOverrides={containerOverrides[selectedScenario.id] || {}}
+                      onContainerOverrideChange={(week, override) => handleContainerOverrideChange(selectedScenario.id, week, override)}
                       onFixUnitPrice={handleUnitPriceFix}
                       entries={entries}
                       maxWeeks={computedMaxWeeks}

@@ -1,5 +1,5 @@
-import { ProcessedScenario } from "../types";
-import { CheckCircle2, AlertTriangle, Ship, ArrowRight, TableProperties, BarChart3 } from "lucide-react";
+import { ProcessedScenario, IncotermRule } from "../types";
+import { CheckCircle2, AlertTriangle, Ship, ArrowRight, TableProperties, BarChart3, Anchor } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Language, t } from "../utils/translate";
 
@@ -10,6 +10,8 @@ interface ScenarioOverviewProps {
   lang: Language;
   currency: "THB" | "USD";
   exchangeRates: Record<string, number>;
+  incotermConflicts?: Array<{ vendorCode: string; incoterms: string[] }>;
+  incotermRules?: IncotermRule[];
 }
 
 export default function ScenarioOverview({
@@ -18,7 +20,9 @@ export default function ScenarioOverview({
   onSelectScenario,
   lang,
   currency,
-  exchangeRates
+  exchangeRates,
+  incotermConflicts = [],
+  incotermRules = []
 }: ScenarioOverviewProps) {
   if (scenarios.length === 0) return null;
 
@@ -136,6 +140,61 @@ export default function ScenarioOverview({
 
   return (
     <div className="space-y-8">
+      {/* Incoterm Data Conflict Warning */}
+      {incotermConflicts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 text-xs text-amber-900 leading-relaxed">
+          <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-bold">
+              {t("Incoterm Conflict Detected:", lang)}
+            </span>{" "}
+            {t("The uploaded PR file lists more than one Incoterm for the same vendor/origin — only the first value found is being applied. Review and correct in Advanced Procurement Settings \u2192 Incoterms if this is not intentional.", lang)}
+            <ul className="mt-2 space-y-1">
+              {incotermConflicts.map((c, idx) => (
+                <li key={idx} className="font-mono text-[11px] bg-white/60 border border-amber-100 rounded px-2 py-1 inline-block mr-2 mb-1">
+                  <span className="font-bold">{c.vendorCode}</span>: {c.incoterms.join(" vs ")}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Ship From & Incoterm reference — a plain, separate readout of what
+          vendor/origin/Incoterm combination is actually in effect, so it's
+          clear at a glance which vendor is being used when reviewing/testing
+          scenarios below. Not tied to the conflict check above. */}
+      {incotermRules.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 border-b border-slate-100">
+            <Anchor className="text-blue-600" size={16} />
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              {t("Ship From & Incoterm", lang)}
+            </h3>
+          </div>
+          <div className="overflow-x-auto max-h-56 overflow-y-auto">
+            <table className="w-full text-[11px] text-left border-collapse">
+              <thead className="sticky top-0">
+                <tr className="bg-slate-50/80 text-slate-500 uppercase tracking-wider text-[10px] font-semibold border-b border-slate-200">
+                  <th className="py-2 px-4">{t("Vendor Code", lang)}</th>
+                  <th className="py-2 px-4">{t("Ship From", lang)}</th>
+                  <th className="py-2 px-4">{t("Incoterm", lang)}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {incotermRules.map(rule => (
+                  <tr key={rule.id} className="hover:bg-slate-50">
+                    <td className="py-1.5 px-4 font-mono font-semibold text-slate-700">{rule.vendorCode}</td>
+                    <td className="py-1.5 px-4 font-mono text-slate-600">{rule.shipFrom || "—"}</td>
+                    <td className="py-1.5 px-4 font-mono font-bold text-blue-600">{rule.incoterm}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Visual Scenario Cards Grid */}
       <div>
         <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-2">
@@ -367,16 +426,16 @@ export default function ScenarioOverview({
                       {formatMoney(sc.totalMaterialCost)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {formatMoney(sc.totalFreightCost)}
+                      {sc.totalFreightCost > 0 ? formatMoney(sc.totalFreightCost) : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {formatMoney(sc.totalLocalCost)}
+                      {sc.totalLocalCost > 0 ? formatMoney(sc.totalLocalCost) : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
                       {sc.totalExworkCost > 0 ? formatMoney(sc.totalExworkCost) : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-500">
-                      {formatMoney(sc.totalBrokerageCost)}
+                      {sc.totalBrokerageCost > 0 ? formatMoney(sc.totalBrokerageCost) : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-slate-800 font-bold bg-slate-50/40">
                       {formatMoney(sc.totalFreightCost + sc.totalLocalCost + sc.totalExworkCost + sc.totalBrokerageCost)}

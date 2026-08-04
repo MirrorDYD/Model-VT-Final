@@ -181,6 +181,18 @@ const translations: Record<string, Record<Language, string>> = {
     EN: "Container & Logistics Scenario Slices",
     TH: "กลุ่มสถานการณ์และการวางแผนตู้คอนเทนเนอร์"
   },
+  "Ship From & Incoterm": {
+    EN: "Ship From & Incoterm",
+    TH: "ต้นทางจัดส่ง & Incoterm"
+  },
+  "Incoterm Conflict Detected:": {
+    EN: "Incoterm Conflict Detected:",
+    TH: "ตรวจพบ Incoterm ที่ขัดแย้งกัน:"
+  },
+  "The uploaded PR file lists more than one Incoterm for the same vendor/origin — only the first value found is being applied. Review and correct in Advanced Procurement Settings \u2192 Incoterms if this is not intentional.": {
+    EN: "The uploaded PR file lists more than one Incoterm for the same vendor/origin — only the first value found is being applied. Review and correct in Advanced Procurement Settings \u2192 Incoterms if this is not intentional.",
+    TH: "ไฟล์ PR ที่อัปโหลดระบุ Incoterm มากกว่าหนึ่งค่าสำหรับผู้ขาย/ต้นทางเดียวกัน ระบบใช้เฉพาะค่าแรกที่พบเท่านั้น กรุณาตรวจสอบและแก้ไขที่การตั้งค่าจัดซื้อขั้นสูง \u2192 Incoterms หากไม่ใช่ความตั้งใจ"
+  },
   "Scenario Cost Breakdown Analysis (THB)": {
     EN: "Scenario Cost Breakdown Analysis (THB)",
     TH: "การวิเคราะห์รายละเอียดต้นทุนในแต่ละสถานการณ์ (THB)"
@@ -1403,9 +1415,9 @@ const translations: Record<string, Record<Language, string>> = {
     EN: "Interactive Shipment Planning:",
     TH: "การวางแผนชิปเมนต์แบบอินเทอร์แอกทีฟ:"
   },
-  "Drag and drop any materials between shipment cards to reschedule them manually, or use the drop-down selector on each line. The logistics engine will instantly re-calculate ocean freight container packing, MCQ surcharges, carrying penalties, and total landed costs!": {
-    EN: "Drag and drop any materials between shipment cards to reschedule them manually, or use the drop-down selector on each line. The logistics engine will instantly re-calculate ocean freight container packing, MCQ surcharges, carrying penalties, and total landed costs!",
-    TH: "ลากและวางวัตถุดิบระหว่างการ์ดชิปเมนต์เพื่อเปลี่ยนกำหนดการด้วยตนเอง หรือใช้ตัวเลือกแบบดรอปดาวน์ในแต่ละบรรทัด ระบบจะคำนวณการจัดตู้คอนเทนเนอร์ ค่าธรรมเนียม MCQ ค่าปรับการถือครอง และต้นทุนนำเข้ารวมใหม่ทันที!"
+  "Drag and drop any materials between shipment cards to reschedule them manually, use the drop-down selector on each line, or pick a specific container mix per shipment below. The logistics engine will instantly re-calculate ocean freight container packing, MCQ surcharges, carrying penalties, and total landed costs!": {
+    EN: "Drag and drop any materials between shipment cards to reschedule them manually, use the drop-down selector on each line, or pick a specific container mix per shipment below. The logistics engine will instantly re-calculate ocean freight container packing, MCQ surcharges, carrying penalties, and total landed costs!",
+    TH: "ลากและวางวัตถุดิบระหว่างการ์ดชิปเมนต์เพื่อเปลี่ยนกำหนดการด้วยตนเอง ใช้ตัวเลือกแบบดรอปดาวน์ในแต่ละบรรทัด หรือเลือกชุดตู้คอนเทนเนอร์เฉพาะสำหรับแต่ละชิปเมนต์ด้านล่าง ระบบจะคำนวณการจัดตู้คอนเทนเนอร์ ค่าธรรมเนียม MCQ ค่าปรับการถือครอง และต้นทุนนำเข้ารวมใหม่ทันที!"
   },
   "BROKERAGE (Clearance)": {
     EN: "BROKERAGE (Clearance)",
@@ -1598,6 +1610,14 @@ const translations: Record<string, Record<Language, string>> = {
   "Total Ordered Quantity": {
     EN: "Total Ordered Quantity",
     TH: "จำนวนสั่งซื้อรวม"
+  },
+  "Qty Original PR": {
+    EN: "Qty Original PR",
+    TH: "จำนวนตาม PR เดิม"
+  },
+  "Qty PO": {
+    EN: "Qty PO",
+    TH: "จำนวนตาม PO"
   },
   "UOM": {
     EN: "UOM",

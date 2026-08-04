@@ -1,4 +1,4 @@
-import { PrEntry, ContainerConfig, RouteConfig, ScenarioDef, ShipmentGroup, ProcessedScenario, MoqAlert, ErrorFlag, ShippingQuote, RouteQuote, ExcessMcqOverride, WarehouseRentConfig, SurchargeRule, ImportedFclQuote, IncotermRule, LoadingDateRule } from "./types";
+import { PrEntry, ContainerConfig, ContainerOverride, RouteConfig, ScenarioDef, ShipmentGroup, ProcessedScenario, MoqAlert, ErrorFlag, ShippingQuote, RouteQuote, ExcessMcqOverride, WarehouseRentConfig, SurchargeRule, ImportedFclQuote, IncotermRule, LoadingDateRule } from "./types";
 import { getDefaultImportedFclQuotes } from "./defaultFclQuotes";
 
 export const getDaysDifference = (d1: Date, d2: Date) => {
@@ -939,9 +939,11 @@ export function calculateContainers(
     };
   }
 
-  // Rule: LCL has NO elasticity tolerance — hard cap at 19 CBM.
-  // If force20ftFcl is true, we skip LCL and force FCL.
-  if (totalCbm <= 19.0 && !force20ftFcl) {
+  // Under the elastic/flexible rule:
+  // cbm <= 19 -> LCL. With up to 2.1 CBM elasticity, if totalCbm <= 21.1, we can still use LCL!
+  // But if force20ftFcl is true, we skip LCL and force FCL.
+  if (totalCbm <= 21.1 && !force20ftFcl) {
+    const isOverTheoretical = totalCbm > 19.0;
     const name = `LCL (${totalCbm.toFixed(2)}/19.00 CBM)`;
     return {
       num20gp: 0,
@@ -951,10 +953,12 @@ export function calculateContainers(
       isLcl: true,
       totalCbm,
       freightCost: 0,
-      status: "Acceptable",
-      statusDetails: `Fully fits in LCL space (max 19 CBM).`,
+      status: isOverTheoretical ? "Review Needed" : "Acceptable",
+      statusDetails: isOverTheoretical
+        ? `Squeezed (High Utilization / Elastic Capacity): Over LCL theoretical capacity (19 CBM) by ${Math.max(0, totalCbm - 19.0).toFixed(2)} CBM, but within +2.1 CBM tolerance.`
+        : `Fully fits in LCL space (max 19 CBM).`,
       capacity: 19.0,
-      excessCbm: 0
+      excessCbm: Math.max(0, totalCbm - 19.0)
     };
   }
 
@@ -1073,6 +1077,73 @@ function formatFclName(num40hq: number, num40gp: number, num20gp: number, totalC
   if (num40gp > 0) parts.push(`${num40gp}x 40ft`);
   if (num20gp > 0) parts.push(`${num20gp}x 20ft`);
   return parts.join(" + ") + ` FCL (${totalCbm.toFixed(2)}/${totalCapacity.toFixed(2)} CBM)`;
+}
+
+/**
+ * Build a ContainerConfig for a user-selected manual container mix (set from
+ * the Shipment Containers & Bins tab), evaluating capacity/status the same
+ * way calculateContainers does for auto-computed combinations, so a manual
+ * override gets the same Acceptable / Squeezed / Over-capacity feedback.
+ * freightCost is left at 0 here — the caller recalculates real freight/
+ * local/brokerage costs against this mix via calculateRouteCosts.
+ */
+function buildManualContainerConfig(
+  num20gp: number,
+  num40gp: number,
+  num40hq: number,
+  isLcl: boolean,
+  totalCbm: number
+): ContainerConfig {
+  if (isLcl || (num20gp === 0 && num40gp === 0 && num40hq === 0)) {
+    const isOverTheoretical = totalCbm > 19.0;
+    return {
+      num20gp: 0,
+      num40gp: 0,
+      num40hq: 0,
+      name: `LCL (${totalCbm.toFixed(2)}/19.00 CBM) (Manual)`,
+      isLcl: true,
+      totalCbm,
+      freightCost: 0,
+      status: isOverTheoretical ? "Review Needed" : "Acceptable",
+      statusDetails: isOverTheoretical
+        ? `Squeezed (High Utilization / Elastic Capacity): Over LCL theoretical capacity (19 CBM) by ${Math.max(0, totalCbm - 19.0).toFixed(2)} CBM, but within +2.1 CBM tolerance.`
+        : `Fully fits in LCL space (max 19 CBM).`,
+      capacity: 19.0,
+      excessCbm: Math.max(0, totalCbm - 19.0)
+    };
+  }
+
+  const capacity = num20gp * 25 + num40gp * 60 + num40hq * 65;
+  // Elasticity applies only to 40ft and 40HQ units — 20ft has zero tolerance
+  const maxAllowedExcess = (num40gp + num40hq) * 2.1;
+  const excessCbm = totalCbm - capacity > 0.005 ? totalCbm - capacity : 0;
+
+  let status: "Acceptable" | "Review Needed" | "NOT Acceptable" = "Acceptable";
+  let statusDetails = "";
+  if (excessCbm === 0 || totalCbm <= capacity) {
+    status = "Acceptable";
+    statusDetails = `Fully acceptable. Fits within your selected containers' capacity of ${capacity} CBM.`;
+  } else if (maxAllowedExcess > 0 && excessCbm <= maxAllowedExcess) {
+    status = "Review Needed";
+    statusDetails = `Squeezed (High Utilization / Elastic Capacity): Over your selected containers' capacity by ${excessCbm.toFixed(2)} CBM. Within the +${maxAllowedExcess.toFixed(1)} CBM elasticity limit (40ft/40HQ only). Acceptable pending physical loading review.`;
+  } else {
+    status = "NOT Acceptable";
+    statusDetails = `Manually selected containers are too small: over capacity by ${excessCbm.toFixed(2)} CBM, exceeding the allowed tolerance (${capacity} CBM${maxAllowedExcess > 0 ? ` + ${maxAllowedExcess.toFixed(1)} CBM elasticity` : ", no elasticity for 20ft"}). Choose a larger container mix or switch to LCL.`;
+  }
+
+  return {
+    num20gp,
+    num40gp,
+    num40hq,
+    name: formatFclName(num40hq, num40gp, num20gp, totalCbm, capacity) + " (Manual)",
+    isLcl: false,
+    totalCbm,
+    freightCost: 0,
+    status,
+    statusDetails,
+    capacity,
+    excessCbm
+  };
 }
 
 /**
@@ -1502,7 +1573,7 @@ export function processScenario(
   mcqSurchargeUSD: number = 150,
   mcqSurchargeType: "flat" | "unitPriceIncrease" = "flat",
   excessOverrides: ExcessMcqOverride[] = [],
-  containerOverrides?: Record<number, ContainerConfig>,
+  containerOverrides?: Record<number, ContainerOverride>,
   scenario1ContainersPool?: Array<"20GP" | "40GP" | "40HQ">,
   vendorSurcharges: Record<string, number> = {},
   manualWeekOverrides?: Record<string, number>,
@@ -2898,10 +2969,36 @@ export function processScenario(
     }
 
     // Merge route costs
-    const combinedFreight = standardCosts.freight + toMmCosts.freight;
-    const combinedLocal = standardCosts.local + toMmCosts.local;
-    const combinedBrokerage = standardCosts.brokerage + toMmCosts.brokerage;
-    const combinedExwork = standardCosts.exwork + toMmCosts.exwork;
+    let combinedFreight = standardCosts.freight + toMmCosts.freight;
+    let combinedLocal = standardCosts.local + toMmCosts.local;
+    let combinedBrokerage = standardCosts.brokerage + toMmCosts.brokerage;
+    let combinedExwork = standardCosts.exwork + toMmCosts.exwork;
+
+    // Manual container override for this shipment week, set from the
+    // Shipment Containers & Bins tab. When present, it completely replaces
+    // the auto-computed packing above (standard + to-MM streams are billed
+    // together as a single mix) and freight/local/brokerage/exwork are
+    // recalculated to match the user's chosen containers.
+    const weekContainerOverride = containerOverrides && containerOverrides[w];
+    let overrideContainerConfig: ContainerConfig | undefined;
+    if (weekContainerOverride && totalCbm > 0) {
+      overrideContainerConfig = buildManualContainerConfig(
+        weekContainerOverride.num20gp,
+        weekContainerOverride.num40gp,
+        weekContainerOverride.num40hq,
+        weekContainerOverride.isLcl,
+        totalCbm
+      );
+      // Bill against whichever stream's route quote is dominant for this
+      // week (in the common case there is only one stream anyway).
+      const overrideRouteQuote = standardCbm >= toMmCbm ? standardRouteQuote : toMmRouteQuote;
+      const overrideCostsRaw = calculateRouteCosts(shipFrom, totalCbm, 1, overrideContainerConfig, overrideRouteQuote, exchangeRates);
+      combinedFreight = overrideCostsRaw.freight;
+      combinedLocal = overrideCostsRaw.local;
+      combinedBrokerage = overrideCostsRaw.brokerage;
+      combinedExwork = overrideCostsRaw.exwork;
+      overrideContainerConfig.freightCost = combinedFreight;
+    }
 
     // Carrying Cost and Opportunity Cost are the sum of individual PR costs (already in THB)
     const carryingCost = weekPrs.reduce((sum, p) => sum + (p.carryingCost || 0), 0);
@@ -2931,14 +3028,18 @@ export function processScenario(
           }
         }
       };
-      weekWarehouseRent = calcRent(standardContainer) + calcRent(toMmContainer);
+      weekWarehouseRent = overrideContainerConfig
+        ? calcRent(overrideContainerConfig)
+        : calcRent(standardContainer) + calcRent(toMmContainer);
       totalWarehouseRentCost += weekWarehouseRent;
     }
 
     const totalLandedCost = totalMaterialCost + combinedFreight + combinedLocal + combinedBrokerage + combinedExwork + carryingCost + opportunityCost + surchargeForWeek + weekWarehouseRent;
 
-    // Build the combined container configuration
-    const container: ContainerConfig = {
+    // Build the combined container configuration — use the manual override
+    // wholesale if the user set one for this week, otherwise merge the
+    // auto-computed standard + to-MM container picks as before.
+    const container: ContainerConfig = overrideContainerConfig || {
       num20gp: standardContainer.num20gp + toMmContainer.num20gp,
       num40gp: standardContainer.num40gp + toMmContainer.num40gp,
       num40hq: standardContainer.num40hq + toMmContainer.num40hq,
@@ -3471,8 +3572,8 @@ export function distributeContainerPool(
     let maxUncovered = -Infinity;
 
     sortedWeeks.forEach(({ week, cbm }) => {
-      if (cbm <= 19.0) {
-        return; // Skip if volume fits in LCL (<= 19.0 CBM, no tolerance)
+      if (cbm <= 21.1) {
+        return; // Skip if volume fits in LCL (<= 21.1 CBM under the elastic rule)
       }
       const uncovered = cbm - assignedCapacity[week];
       if (uncovered > maxUncovered) {
@@ -3501,6 +3602,7 @@ export function distributeContainerPool(
     const capacity = num20gp * 25 + num40gp * 60 + num40hq * 65;
 
     if (capacity === 0 && cbm > 0) {
+      const isOverTheoretical = cbm > 19.0;
       result[week] = {
         num20gp: 0,
         num40gp: 0,
@@ -3509,10 +3611,12 @@ export function distributeContainerPool(
         isLcl: true,
         totalCbm: cbm,
         freightCost: 0,
-        status: "Acceptable",
-        statusDetails: `Fully fits in LCL space (max 19 CBM).`,
+        status: isOverTheoretical ? "Review Needed" : "Acceptable",
+        statusDetails: isOverTheoretical
+          ? `Squeezed (High Utilization / Elastic Capacity): Over LCL theoretical capacity (19 CBM) by ${Math.max(0, cbm - 19.0).toFixed(2)} CBM, but within +2.1 CBM tolerance.`
+          : `Fully fits in LCL space (max 19 CBM).`,
         capacity: 19.0,
-        excessCbm: 0
+        excessCbm: Math.max(0, cbm - 19.0)
       };
     } else {
       // Elasticity applies only to 40ft and 40HQ — 20ft has zero tolerance
@@ -3591,7 +3695,8 @@ export function processAllScenarios(
   manualMatrixQtyOverrides: Record<string, Record<string, number>> = {},
   unitPriceOverrides: Record<string, number> = {},
   mcqMoqPreferences?: Record<string, "surcharge" | "pr_file">,
-  acceptedFlags?: Record<string, boolean>
+  acceptedFlags?: Record<string, boolean>,
+  containerOverrides: Record<string, Record<string, ContainerOverride>> = {}
 ): ProcessedScenario[] {
   const routeQuote = matchRouteQuote(shipFrom, customRouteQuotes);
   const transitTime = routeQuote ? routeQuote.transitTimeDays : 0;
@@ -3703,7 +3808,7 @@ export function processAllScenarios(
     mcqSurchargeUSD,
     mcqSurchargeType,
     excessOverrides,
-    undefined,
+    containerOverrides["1"],
     undefined,
     vendorSurcharges,
     manualWeekOverrides["1"],
@@ -3744,7 +3849,7 @@ export function processAllScenarios(
     mcqSurchargeUSD,
     mcqSurchargeType,
     excessOverrides,
-    undefined,
+    containerOverrides["1"],
     undefined,
     vendorSurcharges,
     manualWeekOverrides["1"],
@@ -3833,7 +3938,7 @@ export function processAllScenarios(
         mcqSurchargeUSD,
         mcqSurchargeType,
         excessOverrides,
-        undefined,
+        containerOverrides[sId] || containerOverrides[`${numShipments}`],
         undefined,
         vendorSurcharges,
         manualWeekOverrides[sId] || manualWeekOverrides[`${numShipments}`],
@@ -3912,7 +4017,7 @@ export function findValidCombinationsForSingleRoute(
       return (h + f + t) > 0 && fclCapacity >= V;
     } else {
       const remaining = V - baseCapacity;
-      return remaining > 0 && remaining <= 19.0;
+      return remaining > 0 && remaining <= 21.1;
     }
   };
 
@@ -3942,7 +4047,7 @@ export function findValidCombinationsForSingleRoute(
           candidateTs.push(reqT);
         } else {
           // l === 1
-          const minT = Math.max(0, Math.ceil((V - 19.0 - h * 65 - f * 60) / 25));
+          const minT = Math.max(0, Math.ceil((V - 21.1 - h * 65 - f * 60) / 25));
           const maxT_lcl = Math.max(0, Math.floor((V - 0.001 - h * 65 - f * 60) / 25));
           for (let t = minT; t <= maxT_lcl; t++) {
             candidateTs.push(t);

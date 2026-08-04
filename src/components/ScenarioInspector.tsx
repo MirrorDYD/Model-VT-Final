@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ProcessedScenario, ShipmentGroup, PrEntry, MoqAlert, ExcessMcqOverride, SurchargeRule } from "../types";
+import { ProcessedScenario, ShipmentGroup, PrEntry, MoqAlert, ExcessMcqOverride, SurchargeRule, ContainerOverride } from "../types";
 import { ShieldAlert, AlertTriangle, HelpCircle, Truck, Layers, Eye, Table, CheckSquare, Plus, Minus, Info, CheckCircle2, FileSpreadsheet, Download, RotateCcw, GripVertical, ChevronDown, ChevronUp, Pencil, X, Calendar, Trash2, Check } from "lucide-react";
 import { exportCombinedExcelReport, exportSeparatedExcelZip } from "../utils/excelExport";
 import { Language, t, tp } from "../utils/translate";
@@ -16,6 +16,8 @@ interface ScenarioInspectorProps {
   hasManualOverrides?: boolean;
   matrixQtyOverrides?: Record<string, number>;
   onMatrixQtyChange?: (itemDescription: string, colorCode: string, week: number, value: number | null) => void;
+  containerOverrides?: Record<string, ContainerOverride>;
+  onContainerOverrideChange?: (week: number, override: ContainerOverride | null) => void;
   onFixUnitPrice?: (itemCode: string, colorCode: string, value: number | null | "zero") => void;
   entries?: PrEntry[];
   maxWeeks?: number;
@@ -107,6 +109,163 @@ function EditableQtyCell({
   );
 }
 
+// Presets shown in the per-shipment container picker on the "Shipment
+// Containers & Bins" tab. "Auto (Recommended)" clears the override so the
+// logistics engine goes back to auto-computing the cheapest valid packing;
+// any other preset — or a custom mix — replaces it and re-bills freight/
+// local/brokerage costs against exactly what the user picked.
+const CONTAINER_PRESETS: { key: string; label: string; value: ContainerOverride | null }[] = [
+  { key: "auto", label: "Auto (Recommended)", value: null },
+  { key: "lcl", label: "LCL", value: { num20gp: 0, num40gp: 0, num40hq: 0, isLcl: true } },
+  { key: "1x20", label: "1x 20ft FCL", value: { num20gp: 1, num40gp: 0, num40hq: 0, isLcl: false } },
+  { key: "1x40", label: "1x 40ft FCL", value: { num20gp: 0, num40gp: 1, num40hq: 0, isLcl: false } },
+  { key: "1x40hq", label: "1x 40HQ FCL", value: { num20gp: 0, num40gp: 0, num40hq: 1, isLcl: false } },
+  { key: "2x40hq", label: "2x 40HQ FCL", value: { num20gp: 0, num40gp: 0, num40hq: 2, isLcl: false } },
+  { key: "1x40hq_1x20", label: "1x 40HQ + 1x 20ft FCL", value: { num20gp: 1, num40gp: 0, num40hq: 1, isLcl: false } },
+  { key: "1x40hq_1x40", label: "1x 40HQ + 1x 40ft FCL", value: { num20gp: 0, num40gp: 1, num40hq: 1, isLcl: false } },
+  { key: "3x40hq", label: "3x 40HQ FCL", value: { num20gp: 0, num40gp: 0, num40hq: 3, isLcl: false } },
+  { key: "custom", label: "Custom Mix\u2026", value: null }
+];
+
+function presetKeyForOverride(o?: ContainerOverride): string {
+  if (!o) return "auto";
+  const match = CONTAINER_PRESETS.find(p =>
+    p.value && p.value.isLcl === o.isLcl && p.value.num20gp === o.num20gp && p.value.num40gp === o.num40gp && p.value.num40hq === o.num40hq
+  );
+  return match ? match.key : "custom";
+}
+
+// Lets the user swap the auto-computed container(s) for a shipment with a
+// manual pick — either a common preset (1x 40HQ, 2x 40HQ, LCL, etc.) or a
+// fully custom 20ft/40ft/40HQ mix. Selecting "Auto" clears the override.
+function ContainerMixPicker({
+  override,
+  autoContainer,
+  onChange,
+  disabled
+}: {
+  override?: ContainerOverride;
+  // The currently active (auto-computed or previously-set) container mix,
+  // used only to seed the custom-mix fields with something sensible the
+  // first time the user opens "Custom Mix" — never used to decide what's
+  // selected in the dropdown.
+  autoContainer?: { num20gp: number; num40gp: number; num40hq: number };
+  onChange: (override: ContainerOverride | null) => void;
+  disabled?: boolean;
+}) {
+  const derivedKey = presetKeyForOverride(override);
+
+  // Whether "Custom Mix" is the active dropdown option. This is tracked as
+  // its own piece of state — NOT derived by matching the current counts
+  // against the preset list — because a custom mix can legitimately equal
+  // a preset's counts (e.g. the default 1x 20ft seed) without meaning the
+  // user picked that preset. Deriving it from the numbers alone caused
+  // "Custom Mix" to silently snap back to whichever preset it happened to
+  // match as soon as it was selected.
+  const [customMode, setCustomMode] = useState(derivedKey === "custom");
+  const [customDraft, setCustomDraft] = useState<ContainerOverride>(
+    override && derivedKey === "custom"
+      ? override
+      : {
+          num20gp: autoContainer?.num20gp || 1,
+          num40gp: autoContainer?.num40gp || 0,
+          num40hq: autoContainer?.num40hq || 0,
+          isLcl: false
+        }
+  );
+
+  // If the override changes to a mix that doesn't match any known preset
+  // (e.g. restored from a saved session), switch into custom mode so the
+  // dropdown and fields reflect it correctly.
+  useEffect(() => {
+    if (derivedKey === "custom" && override) {
+      setCustomMode(true);
+      setCustomDraft(override);
+    } else if (!override) {
+      // Override was cleared externally (e.g. "Reset Overrides") — go back
+      // to showing "Auto (Recommended)" instead of staying stuck in custom mode.
+      setCustomMode(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [override?.num20gp, override?.num40gp, override?.num40hq, override?.isLcl]);
+
+  const currentKey = customMode ? "custom" : derivedKey;
+
+  const handlePresetChange = (key: string) => {
+    if (key === "custom") {
+      setCustomMode(true);
+      onChange(customDraft);
+      return;
+    }
+    setCustomMode(false);
+    const preset = CONTAINER_PRESETS.find(p => p.key === key);
+    onChange(preset ? preset.value : null);
+  };
+
+  const updateCustom = (patch: Partial<ContainerOverride>) => {
+    const next = { ...customDraft, ...patch, isLcl: false };
+    setCustomDraft(next);
+    onChange(next);
+  };
+
+  return (
+    <div className="mt-2.5">
+      <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+        Container Selection
+      </label>
+      <select
+        value={currentKey}
+        disabled={disabled}
+        onChange={(e) => handlePresetChange(e.target.value)}
+        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+        title="Choose which container(s) to use for this shipment"
+      >
+        {CONTAINER_PRESETS.map(p => (
+          <option key={p.key} value={p.key}>{p.label}</option>
+        ))}
+      </select>
+
+      {currentKey === "custom" && (
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-semibold text-slate-400 uppercase text-center">20ft</span>
+            <input
+              type="number"
+              min={0}
+              value={customDraft.num20gp}
+              disabled={disabled}
+              onChange={(e) => updateCustom({ num20gp: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+              className="bg-white border border-slate-200 rounded px-1.5 py-1 text-[11px] text-center font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-semibold text-slate-400 uppercase text-center">40ft</span>
+            <input
+              type="number"
+              min={0}
+              value={customDraft.num40gp}
+              disabled={disabled}
+              onChange={(e) => updateCustom({ num40gp: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+              className="bg-white border border-slate-200 rounded px-1.5 py-1 text-[11px] text-center font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-semibold text-slate-400 uppercase text-center">40HQ</span>
+            <input
+              type="number"
+              min={0}
+              value={customDraft.num40hq}
+              disabled={disabled}
+              onChange={(e) => updateCustom({ num40hq: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+              className="bg-white border border-slate-200 rounded px-1.5 py-1 text-[11px] text-center font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Displays a quantity at its true source precision instead of rounding it
 // off. Uploaded PR files commonly carry 2-3 decimal places (e.g. 157.634),
 // and truncating that with a fixed toFixed(1) silently hides real digits
@@ -132,6 +291,8 @@ export default function ScenarioInspector({
   hasManualOverrides,
   matrixQtyOverrides = {},
   onMatrixQtyChange,
+  containerOverrides = {},
+  onContainerOverrideChange,
   onFixUnitPrice,
   entries = [],
   maxWeeks = 12,
@@ -260,12 +421,38 @@ export default function ScenarioInspector({
   // multiple garment styles/items shows up as separate, individually
   // correctable rows instead of being merged into one color-only total.
   const colorGroupedSummary = colorItemPairs.map(({ itemDescription, colorCode }) => {
-    const entries = scenario.processedEntries.filter(
+    const poEntries = scenario.processedEntries.filter(
       e => (e.itemDescription || e.itemCode) === itemDescription && e.colorCode === colorCode
     );
-    const totalQty = entries.reduce((sum, e) => sum + e.originalQty, 0);
-    const totalCbm = entries.reduce((sum, e) => sum + e.cbm, 0);
-    const totalMaterialCost = entries.reduce((sum, e) => {
+
+    // "Qty Original PR" — the quantity as it appears on the uploaded PR/
+    // Requisition file (or sample data) before any optimizer processing.
+    // Sourced from the raw `entries` prop rather than
+    // scenario.processedEntries, because processedEntries[].originalQty
+    // gets mutated in place by Excess MCQ padding overrides (optimizer.ts
+    // adds the padding qty onto both qty AND originalQty when padding an
+    // existing PR line) — using it here would silently inflate the
+    // "as-uploaded" figure once a padding override is applied.
+    const origEntries = entries.filter(
+      e => (e.itemDescription || e.itemCode) === itemDescription && e.colorCode === colorCode
+    );
+    const origQty = origEntries.reduce((sum, e) => sum + e.qty, 0);
+
+    // "Qty PO" — the current, working quantity after MCQ Shipment Calendar
+    // Matrix manual edits and Excess MCQ padding overrides. Both are
+    // already baked into processedEntries[].qty by the optimizer, so this
+    // total updates live as the user edits either tab.
+    const poQty = poEntries.reduce((sum, e) => sum + e.qty, 0);
+
+    // CBM already tracks Qty PO: the optimizer rescales/recomputes cbm
+    // whenever qty is overridden, so summing it here reflects the current
+    // PO quantity rather than the original PR quantity.
+    const totalCbm = poEntries.reduce((sum, e) => sum + e.cbm, 0);
+
+    // Material cost must be based on Qty PO — the quantity actually being
+    // shipped/paid for after overrides — not the original PR quantity,
+    // otherwise a manually edited shipment would show the wrong cost.
+    const totalMaterialCost = poEntries.reduce((sum, e) => {
       const currCode = (e.currency || "").toUpperCase().trim();
       const rate = e.currencyRate !== undefined && e.currencyRate !== null
         ? e.currencyRate
@@ -277,12 +464,13 @@ export default function ScenarioInspector({
               )
           );
       const priceTHB = e.unitPrice * rate;
-      return sum + (e.originalQty * priceTHB);
+      return sum + (e.qty * priceTHB);
     }, 0);
     return {
       itemDescription,
       color: colorCode,
-      totalQty,
+      origQty,
+      poQty,
       totalCbm,
       totalMaterialCost
     };
@@ -1028,7 +1216,8 @@ export default function ScenarioInspector({
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[10px] uppercase tracking-wider">
                   <th className="py-3 px-4">{t("Item Description", lang)}</th>
                   <th className="py-3 px-4">{t("Color Code", lang)}</th>
-                  <th className="py-3 px-4 text-right">{t("Total Ordered Quantity", lang)}</th>
+                  <th className="py-3 px-4 text-right">{t("Qty Original PR", lang)}</th>
+                  <th className="py-3 px-4 text-right">{t("Qty PO", lang)}</th>
                   <th className="py-3 px-4 text-right">{t("Total CBM Volume", lang)}</th>
                   <th className="py-3 px-4 text-right">{t("Total Material Cost", lang)}</th>
                 </tr>
@@ -1045,8 +1234,11 @@ export default function ScenarioInspector({
                       }}></span>
                       {row.color}
                     </td>
+                    <td className="py-3 px-4 text-right text-slate-500">
+                      {formatOriginalQty(row.origQty)} YD
+                    </td>
                     <td className="py-3 px-4 text-right font-bold text-slate-700">
-                      {Math.round(row.totalQty).toLocaleString()} YD
+                      {Math.round(row.poQty).toLocaleString()} YD
                     </td>
                     <td className="py-3 px-4 text-right text-slate-600">
                       {row.totalCbm.toFixed(3)} CBM
@@ -1605,7 +1797,7 @@ export default function ScenarioInspector({
           <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex gap-3 text-xs text-slate-600 leading-relaxed">
             <Info size={18} className="text-blue-600 shrink-0 mt-0.5" />
             <div>
-              <span className="text-blue-900 font-bold">{t("Interactive Shipment Planning:", lang)}</span> {t("Drag and drop any materials between shipment cards to reschedule them manually, or use the drop-down selector on each line. The logistics engine will instantly re-calculate ocean freight container packing, MCQ surcharges, carrying penalties, and total landed costs!", lang)}
+              <span className="text-blue-900 font-bold">{t("Interactive Shipment Planning:", lang)}</span> {t("Drag and drop any materials between shipment cards to reschedule them manually, use the drop-down selector on each line, or pick a specific container mix per shipment below. The logistics engine will instantly re-calculate ocean freight container packing, MCQ surcharges, carrying penalties, and total landed costs!", lang)}
             </div>
           </div>
 
@@ -1657,11 +1849,20 @@ export default function ScenarioInspector({
                     </div>
 
                     <div className="bg-white border border-slate-200 p-3.5 rounded-lg mb-4">
-                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        Assigned Containers
-                      </div>
-                      <div className="text-sm font-bold text-slate-800 font-mono mt-1">
-                        {ship.container.name}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            Assigned Containers
+                          </div>
+                          <div className="text-sm font-bold text-slate-800 font-mono mt-1">
+                            {ship.container.name}
+                          </div>
+                        </div>
+                        {containerOverrides[`${ship.week}`] && (
+                          <span className="shrink-0 bg-purple-50 text-purple-700 border border-purple-100 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider">
+                            Manual
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-slate-500 mt-1">
                         Total Volume: {ship.totalCbm.toFixed(3)} CBM | Quantity: {Math.round(ship.totalQty).toLocaleString()} YD
@@ -1686,6 +1887,18 @@ export default function ScenarioInspector({
                             <strong className="font-semibold">{ship.container.status}:</strong> {ship.container.statusDetails}
                           </span>
                         </div>
+                      )}
+
+                      {onContainerOverrideChange && (
+                        <ContainerMixPicker
+                          override={containerOverrides[`${ship.week}`]}
+                          autoContainer={{
+                            num20gp: ship.container.num20gp,
+                            num40gp: ship.container.num40gp,
+                            num40hq: ship.container.num40hq
+                          }}
+                          onChange={(override) => onContainerOverrideChange(ship.week, override)}
+                        />
                       )}
                     </div>
 

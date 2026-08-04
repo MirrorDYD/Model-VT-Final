@@ -821,8 +821,19 @@ export default function PrUploader({ onDataLoaded, currentCount, lang }: PrUploa
     setIsLoadingSample(true);
     try {
       // Fetch the real sample spreadsheet (served from /public) and run it
-      // through the exact same parsing pipeline as a manual upload
-      const res = await fetch("/sample-data/KingWhale.xlsx");
+      // through the exact same parsing pipeline as a manual upload.
+      // An explicit timeout guards against fetch() hanging indefinitely
+      // (e.g. a dev-server routing issue) — without it, an unsettled
+      // fetch promise would leave the loading state stuck forever, since
+      // the `finally` block below only runs once this try block settles.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      let res: Response;
+      try {
+        res = await fetch("/sample-data/KingWhale.xlsx", { signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       if (!res.ok) throw new Error(`Could not load sample file (HTTP ${res.status}).`);
       const blob = await res.blob();
       const file = new File([blob], "KingWhale.xlsx", {

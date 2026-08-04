@@ -206,6 +206,17 @@ export interface ContainerConfig {
   excessCbm?: number;
 }
 
+// A user-selected manual container mix for a single shipment, entered in
+// the Shipment Containers & Bins tab. When set for a given shipment week,
+// it replaces the auto-computed container packing (and its freight/local/
+// brokerage costs are recalculated against this exact mix).
+export interface ContainerOverride {
+  num20gp: number;
+  num40gp: number;
+  num40hq: number;
+  isLcl: boolean;
+}
+
 export interface RouteConfig {
   origin: string;
   transitTimeDays: number;
