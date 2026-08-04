@@ -201,6 +201,277 @@ test("a shipment whose quantity is already a whole number is not pulled down by 
   assert.equal(qtyByWeek(5), 1854, "shipment 5 (1853.8) should round up to 1854");
 });
 
+test("an item's first shipment always rounds UP, even when its true quantity happens to land within the near-integer tolerance", () => {
+  const d = (day: number) => new Date(2026, 5, day); // June 2026
+
+  const mk = (id: string, qty: number, week: number): PrEntry => ({
+    id,
+    itemCode: "6011158",
+    itemDescription: "6011158 NF N419 PRINT",
+    colorCode: "# 11",
+    qty,
+    originalQty: qty,
+    unitPrice: 5,
+    prDueDate: d(29),
+    dueDateRaw: d(29),
+    cbm: qty * 0.003,
+    moq: 1,
+    mcq: 999,
+    shipFrom: "Taiwan Keelung",
+    actualDelivery: d(29),
+    currency: "USD",
+    currencyRate: 35,
+    vendor: "IFTCT01",
+    assignedWeek: week,
+  });
+
+  // Reproduces the reported bug: shipment 1 has NO quantity for this
+  // item/color (so it's skipped and shipment 2 becomes the item's true
+  // FIRST shipment), and shipment 2's real summed quantity (2063.869 +
+  // 2 + 1 + 25.809 + 39.328 = 2132.006) happens to land within
+  // NEAR_INTEGER_TOLERANCE (0.05) of a whole number. That 0.006 is a
+  // real fractional remainder from the source data, not floating-point
+  // noise (which cleanQtyFloat already washes out well below this
+  // tolerance) — so it must still go through the mandatory "first
+  // shipment rounds up" rule (-> 2133), not get silently rounded to the
+  // nearest integer (2132), which previously undercounted the shipment
+  // by 1 unit and broke the surplus bank every later shipment draws from.
+  const entries: PrEntry[] = [
+    mk("a", 2063.869, 2),
+    mk("b", 2.000, 2),
+    mk("c", 1.000, 2),
+    mk("d", 25.809, 2),
+    mk("e", 39.328, 2),
+  ];
+
+  const manualWeekOverrides: Record<string, number> = {};
+  entries.forEach(e => { manualWeekOverrides[e.id] = e.assignedWeek!; });
+
+  const scenarioDef: ScenarioDef = {
+    id: "test",
+    numShipments: 2,
+    weeks: [1, 2],
+    name: "Test scenario",
+    splitDaysEarly: [10],
+  };
+
+  const result = processScenario(
+    entries,                // entries
+    scenarioDef,             // scenarioDef
+    d(1),                    // D0
+    0.08,                    // carryingRate
+    0.10,                    // opportunityRate
+    1,                       // defaultMOQ
+    "Taiwan Keelung",        // shipFrom
+    false,                   // enablePullForward
+    false,                   // prefer20ftForOctober
+    [],                      // shipmentDates
+    [],                      // customRouteQuotes
+    0,                       // warehouseStuckDays
+    1000,                    // warehouseDailyRent
+    { USD: 35.0 },           // exchangeRates
+    150,                     // mcqSurchargeUSD
+    "flat",                  // mcqSurchargeType
+    [],                      // excessOverrides
+    undefined,               // containerOverrides
+    undefined,               // scenario1ContainersPool
+    {},                      // vendorSurcharges
+    manualWeekOverrides,     // manualWeekOverrides
+    undefined,               // surchargeRules
+    undefined,               // importedFclQuotes
+    undefined,               // incotermRules
+    999                      // defaultMCQ
+  );
+
+  const qtyByWeek = (w: number) => result.processedEntries
+    .filter(p => p.assignedWeek === w)
+    .reduce((sum, p) => sum + p.qty, 0);
+
+  assert.equal(qtyByWeek(1), 0, "shipment 1 has no quantity for this item/color");
+  assert.equal(qtyByWeek(2), 2133, "shipment 2 is this item's true first shipment (2132.006) and must round UP to 2133, not down to 2132");
+});
+
+test("individually-rounded PR lines within a whole-number shipment total must reconcile back to that total, not invent a phantom unit", () => {
+  const d = (day: number) => new Date(2025, 7, day); // August 2025
+
+  const mk = (id: string, itemCode: string, qty: number, due: Date): PrEntry => ({
+    id,
+    itemCode,
+    itemDescription: "04387D-P2",
+    colorCode: "BLK:BLACK",
+    qty,
+    originalQty: qty,
+    unitPrice: 5,
+    prDueDate: due,
+    dueDateRaw: due,
+    cbm: qty * 0.003,
+    moq: 1,
+    mcq: 999,
+    shipFrom: "Taiwan Keelung",
+    actualDelivery: due,
+    currency: "USD",
+    currencyRate: 35,
+    vendor: "ILIPE01",
+    assignedWeek: 1,
+  });
+
+  // Reproduces the reported bug with the exact real PR lines: two
+  // different item codes ("CWXPLA0008300001" and "ZCWXPLA0008300001")
+  // share the same item description/color and both land in the single
+  // shipment. The main item code's lines (455.71 + 629.56 = 1085.27) go
+  // through the normal ceil/residual path and correctly become 1086. The
+  // second item code's lines (0.5 + 1.0 + 0.5) sum to an EXACT whole
+  // number, 2.0, at the group level — but rounding each PR line
+  // independently (0.5->1, 1.0->1, 0.5->1) sums to 3, one more than the
+  // group's true total. Without residual reconciliation in that
+  // already-whole-number case, this phantom unit silently leaked into the
+  // displayed total (1086 + 3 = 1089) instead of the correct 1086 + 2 =
+  // 1088 (i.e. Math.ceil(1087.27)).
+  const entries: PrEntry[] = [
+    mk("a", "CWXPLA0008300001", 455.71, d(12)),
+    mk("b", "ZCWXPLA0008300001", 0.5, d(12)),
+    mk("c", "CWXPLA0008300001", 629.56, d(30)),
+    mk("d", "ZCWXPLA0008300001", 1.0, d(30)),
+    mk("e", "ZCWXPLA0008300001", 0.5, d(30)),
+  ];
+
+  const manualWeekOverrides: Record<string, number> = {};
+  entries.forEach(e => { manualWeekOverrides[e.id] = 1; });
+
+  const scenarioDef: ScenarioDef = {
+    id: "test",
+    numShipments: 1,
+    weeks: [1],
+    name: "Test scenario",
+    splitDaysEarly: [],
+  };
+
+  const result = processScenario(
+    entries,                // entries
+    scenarioDef,             // scenarioDef
+    d(1),                    // D0
+    0.08,                    // carryingRate
+    0.10,                    // opportunityRate
+    1,                       // defaultMOQ
+    "Taiwan Keelung",        // shipFrom
+    false,                   // enablePullForward
+    false,                   // prefer20ftForOctober
+    [],                      // shipmentDates
+    [],                      // customRouteQuotes
+    0,                       // warehouseStuckDays
+    1000,                    // warehouseDailyRent
+    { USD: 35.0 },           // exchangeRates
+    150,                     // mcqSurchargeUSD
+    "flat",                  // mcqSurchargeType
+    [],                      // excessOverrides
+    undefined,               // containerOverrides
+    undefined,               // scenario1ContainersPool
+    {},                      // vendorSurcharges
+    manualWeekOverrides,     // manualWeekOverrides
+    undefined,               // surchargeRules
+    undefined,               // importedFclQuotes
+    undefined,               // incotermRules
+    999                      // defaultMCQ
+  );
+
+  // Mirrors how the UI aggregates the displayed cell: by item
+  // description + color code, across every item code that shares them.
+  const displayTotal = result.processedEntries
+    .filter(p => (p.itemDescription || p.itemCode) === "04387D-P2" && p.colorCode === "BLK:BLACK" && p.assignedWeek === 1)
+    .reduce((sum, p) => sum + p.qty, 0);
+
+  assert.equal(displayTotal, 1088, "1087.27 must round up to 1088 (Math.ceil), not 1089 — no phantom unit from independently rounding the whole-number item-code subgroup");
+});
+
+test("an item/color split across multiple raw item codes (main fabric code + Z-prefixed placeholder code) rounds as ONE combined row, not once per item code", () => {
+  const d = (day: number) => new Date(2025, 7, day); // August 2025
+
+  const mk = (id: string, itemCode: string, qty: number, due: Date): PrEntry => ({
+    id,
+    itemCode,
+    itemDescription: "04387D-P2",
+    colorCode: "BLSG:BLUE SAGE",
+    qty,
+    originalQty: qty,
+    unitPrice: 5,
+    prDueDate: due,
+    dueDateRaw: due,
+    cbm: qty * 0.003,
+    moq: 1,
+    mcq: 999,
+    shipFrom: "Taiwan Keelung",
+    actualDelivery: due,
+    currency: "USD",
+    currencyRate: 35,
+    vendor: "ILIPE01",
+    assignedWeek: 2,
+  });
+
+  // Reproduces the reported bug with the exact real PR lines: the source
+  // file splits this item/color across a main fabric item code
+  // ("CWXPLA0008300011": 485.03 + 74.68 + 82.32 = 642.03) and a
+  // "Z"-prefixed placeholder item code ("ZCWXPLA0008300011": 1.0 + 0.5 =
+  // 1.5), both sharing the same item description/color and both
+  // displayed as ONE row (643.53 total). Grouping the rounding cascade by
+  // raw item code (instead of by item description, which is what the UI
+  // actually displays and what MCQ is evaluated against) ran the
+  // "shipment 1 always rounds up" rule independently for each item code
+  // -> ceil(642.03)=643 and ceil(1.5)=2 -> 645, one unit more than
+  // ceiling the row's true combined total once (ceil(643.53)=644).
+  const entries: PrEntry[] = [
+    mk("a", "ZCWXPLA0008300011", 1.000, d(4)),
+    mk("b", "CWXPLA0008300011", 485.030, d(17)),
+    mk("c", "ZCWXPLA0008300011", 0.500, d(17)),
+    mk("d", "CWXPLA0008300011", 74.680, d(23)),
+    mk("e", "CWXPLA0008300011", 82.320, d(31)),
+  ];
+
+  const manualWeekOverrides: Record<string, number> = {};
+  entries.forEach(e => { manualWeekOverrides[e.id] = 2; });
+
+  const scenarioDef: ScenarioDef = {
+    id: "test",
+    numShipments: 2,
+    weeks: [1, 2],
+    name: "Test scenario",
+    splitDaysEarly: [10],
+  };
+
+  const result = processScenario(
+    entries,                // entries
+    scenarioDef,             // scenarioDef
+    d(1),                    // D0
+    0.08,                    // carryingRate
+    0.10,                    // opportunityRate
+    1,                       // defaultMOQ
+    "Taiwan Keelung",        // shipFrom
+    false,                   // enablePullForward
+    false,                   // prefer20ftForOctober
+    [],                      // shipmentDates
+    [],                      // customRouteQuotes
+    0,                       // warehouseStuckDays
+    1000,                    // warehouseDailyRent
+    { USD: 35.0 },           // exchangeRates
+    150,                     // mcqSurchargeUSD
+    "flat",                  // mcqSurchargeType
+    [],                      // excessOverrides
+    undefined,               // containerOverrides
+    undefined,               // scenario1ContainersPool
+    {},                      // vendorSurcharges
+    manualWeekOverrides,     // manualWeekOverrides
+    undefined,               // surchargeRules
+    undefined,               // importedFclQuotes
+    undefined,               // incotermRules
+    999                      // defaultMCQ
+  );
+
+  const displayTotal = result.processedEntries
+    .filter(p => (p.itemDescription || p.itemCode) === "04387D-P2" && p.colorCode === "BLSG:BLUE SAGE" && p.assignedWeek === 2)
+    .reduce((sum, p) => sum + p.qty, 0);
+
+  assert.equal(displayTotal, 644, "643.53 must round up to 644 (Math.ceil once for the combined row), not 645 (double-ceiled once per underlying item code)");
+});
+
 test("per-PR Transit Lead Time and Consolidate Weekday override the shipFrom-based defaults", () => {
   const d = (day: number) => new Date(2026, 0, day); // January 2026
   // Jan 6 = Tue, Jan 7 = Wed, Jan 9 = Fri (Tue/Fri are Taiwan Keelung's

@@ -198,6 +198,11 @@ export interface ContainerConfig {
   num40hq: number;
   name: string;
   isLcl: boolean;
+  // Number of LCL "shares" (each a nominal 19 CBM) blended in alongside the
+  // FCL containers above, when this is a mixed LCL+FCL mix. 0/undefined for
+  // a pure-FCL or pure-LCL config. Only set on manual overrides — the
+  // auto-computed packer never mixes LCL with FCL containers.
+  numLcl?: number;
   totalCbm: number;
   freightCost: number;
   status?: "Acceptable" | "Review Needed" | "NOT Acceptable";
@@ -214,6 +219,15 @@ export interface ContainerOverride {
   num20gp: number;
   num40gp: number;
   num40hq: number;
+  // Number of LCL shares (each a nominal 19 CBM) to blend in alongside the
+  // FCL counts above. Can be combined with FCL containers — any actual
+  // volume beyond the FCL containers' combined capacity is billed as LCL.
+  // 0 means no LCL portion. When this is >0 and no FCL containers are set,
+  // the whole shipment ships pure LCL.
+  numLcl: number;
+  // True only for a pure-LCL override (numLcl > 0 and no FCL containers).
+  // Kept for backward compatibility with the "LCL" preset and older saved
+  // overrides; derived automatically by the UI, not user-editable directly.
   isLcl: boolean;
 }
 

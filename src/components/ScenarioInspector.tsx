@@ -116,21 +116,22 @@ function EditableQtyCell({
 // local/brokerage costs against exactly what the user picked.
 const CONTAINER_PRESETS: { key: string; label: string; value: ContainerOverride | null }[] = [
   { key: "auto", label: "Auto (Recommended)", value: null },
-  { key: "lcl", label: "LCL", value: { num20gp: 0, num40gp: 0, num40hq: 0, isLcl: true } },
-  { key: "1x20", label: "1x 20ft FCL", value: { num20gp: 1, num40gp: 0, num40hq: 0, isLcl: false } },
-  { key: "1x40", label: "1x 40ft FCL", value: { num20gp: 0, num40gp: 1, num40hq: 0, isLcl: false } },
-  { key: "1x40hq", label: "1x 40HQ FCL", value: { num20gp: 0, num40gp: 0, num40hq: 1, isLcl: false } },
-  { key: "2x40hq", label: "2x 40HQ FCL", value: { num20gp: 0, num40gp: 0, num40hq: 2, isLcl: false } },
-  { key: "1x40hq_1x20", label: "1x 40HQ + 1x 20ft FCL", value: { num20gp: 1, num40gp: 0, num40hq: 1, isLcl: false } },
-  { key: "1x40hq_1x40", label: "1x 40HQ + 1x 40ft FCL", value: { num20gp: 0, num40gp: 1, num40hq: 1, isLcl: false } },
-  { key: "3x40hq", label: "3x 40HQ FCL", value: { num20gp: 0, num40gp: 0, num40hq: 3, isLcl: false } },
+  { key: "lcl", label: "LCL", value: { num20gp: 0, num40gp: 0, num40hq: 0, numLcl: 1, isLcl: true } },
+  { key: "1x20", label: "1x 20ft FCL", value: { num20gp: 1, num40gp: 0, num40hq: 0, numLcl: 0, isLcl: false } },
+  { key: "1x40", label: "1x 40ft FCL", value: { num20gp: 0, num40gp: 1, num40hq: 0, numLcl: 0, isLcl: false } },
+  { key: "1x40hq", label: "1x 40HQ FCL", value: { num20gp: 0, num40gp: 0, num40hq: 1, numLcl: 0, isLcl: false } },
+  { key: "2x40hq", label: "2x 40HQ FCL", value: { num20gp: 0, num40gp: 0, num40hq: 2, numLcl: 0, isLcl: false } },
+  { key: "1x40hq_1x20", label: "1x 40HQ + 1x 20ft FCL", value: { num20gp: 1, num40gp: 0, num40hq: 1, numLcl: 0, isLcl: false } },
+  { key: "1x40hq_1x40", label: "1x 40HQ + 1x 40ft FCL", value: { num20gp: 0, num40gp: 1, num40hq: 1, numLcl: 0, isLcl: false } },
+  { key: "3x40hq", label: "3x 40HQ FCL", value: { num20gp: 0, num40gp: 0, num40hq: 3, numLcl: 0, isLcl: false } },
   { key: "custom", label: "Custom Mix\u2026", value: null }
 ];
 
 function presetKeyForOverride(o?: ContainerOverride): string {
   if (!o) return "auto";
   const match = CONTAINER_PRESETS.find(p =>
-    p.value && p.value.isLcl === o.isLcl && p.value.num20gp === o.num20gp && p.value.num40gp === o.num40gp && p.value.num40hq === o.num40hq
+    p.value && p.value.isLcl === o.isLcl && p.value.num20gp === o.num20gp && p.value.num40gp === o.num40gp
+      && p.value.num40hq === o.num40hq && (p.value.numLcl || 0) === (o.numLcl || 0)
   );
   return match ? match.key : "custom";
 }
@@ -165,11 +166,12 @@ function ContainerMixPicker({
   const [customMode, setCustomMode] = useState(derivedKey === "custom");
   const [customDraft, setCustomDraft] = useState<ContainerOverride>(
     override && derivedKey === "custom"
-      ? override
+      ? { ...override, numLcl: override.numLcl || 0 }
       : {
           num20gp: autoContainer?.num20gp || 1,
           num40gp: autoContainer?.num40gp || 0,
           num40hq: autoContainer?.num40hq || 0,
+          numLcl: 0,
           isLcl: false
         }
   );
@@ -180,14 +182,14 @@ function ContainerMixPicker({
   useEffect(() => {
     if (derivedKey === "custom" && override) {
       setCustomMode(true);
-      setCustomDraft(override);
+      setCustomDraft({ ...override, numLcl: override.numLcl || 0 });
     } else if (!override) {
       // Override was cleared externally (e.g. "Reset Overrides") — go back
       // to showing "Auto (Recommended)" instead of staying stuck in custom mode.
       setCustomMode(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [override?.num20gp, override?.num40gp, override?.num40hq, override?.isLcl]);
+  }, [override?.num20gp, override?.num40gp, override?.num40hq, override?.numLcl, override?.isLcl]);
 
   const currentKey = customMode ? "custom" : derivedKey;
 
@@ -202,8 +204,14 @@ function ContainerMixPicker({
     onChange(preset ? preset.value : null);
   };
 
+  // LCL can be combined freely with any FCL container counts — any actual
+  // volume beyond what the FCL containers hold ships LCL by volume. isLcl
+  // (pure-LCL) is derived, true only when LCL is set and no FCL containers
+  // are selected; it's never user-editable directly.
   const updateCustom = (patch: Partial<ContainerOverride>) => {
-    const next = { ...customDraft, ...patch, isLcl: false };
+    const merged = { ...customDraft, ...patch };
+    const hasFcl = merged.num20gp > 0 || merged.num40gp > 0 || merged.num40hq > 0;
+    const next: ContainerOverride = { ...merged, isLcl: merged.numLcl > 0 && !hasFcl };
     setCustomDraft(next);
     onChange(next);
   };
@@ -226,40 +234,59 @@ function ContainerMixPicker({
       </select>
 
       {currentKey === "custom" && (
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[9px] font-semibold text-slate-400 uppercase text-center">20ft</span>
-            <input
-              type="number"
-              min={0}
-              value={customDraft.num20gp}
-              disabled={disabled}
-              onChange={(e) => updateCustom({ num20gp: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-              className="bg-white border border-slate-200 rounded px-1.5 py-1 text-[11px] text-center font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[9px] font-semibold text-slate-400 uppercase text-center">40ft</span>
-            <input
-              type="number"
-              min={0}
-              value={customDraft.num40gp}
-              disabled={disabled}
-              onChange={(e) => updateCustom({ num40gp: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-              className="bg-white border border-slate-200 rounded px-1.5 py-1 text-[11px] text-center font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[9px] font-semibold text-slate-400 uppercase text-center">40HQ</span>
-            <input
-              type="number"
-              min={0}
-              value={customDraft.num40hq}
-              disabled={disabled}
-              onChange={(e) => updateCustom({ num40hq: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-              className="bg-white border border-slate-200 rounded px-1.5 py-1 text-[11px] text-center font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-          </label>
+        <div className="mt-2">
+          <div className="grid grid-cols-4 gap-2">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[9px] font-semibold text-slate-400 uppercase text-center">LCL</span>
+              <input
+                type="number"
+                min={0}
+                value={customDraft.numLcl}
+                disabled={disabled}
+                onChange={(e) => updateCustom({ numLcl: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="bg-white border border-slate-200 rounded px-1.5 py-1 text-[11px] text-center font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                title="Number of LCL shares to blend in alongside the FCL containers"
+              />
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[9px] font-semibold text-slate-400 uppercase text-center">20ft</span>
+              <input
+                type="number"
+                min={0}
+                value={customDraft.num20gp}
+                disabled={disabled}
+                onChange={(e) => updateCustom({ num20gp: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="bg-white border border-slate-200 rounded px-1.5 py-1 text-[11px] text-center font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[9px] font-semibold text-slate-400 uppercase text-center">40ft</span>
+              <input
+                type="number"
+                min={0}
+                value={customDraft.num40gp}
+                disabled={disabled}
+                onChange={(e) => updateCustom({ num40gp: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="bg-white border border-slate-200 rounded px-1.5 py-1 text-[11px] text-center font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[9px] font-semibold text-slate-400 uppercase text-center">40HQ</span>
+              <input
+                type="number"
+                min={0}
+                value={customDraft.num40hq}
+                disabled={disabled}
+                onChange={(e) => updateCustom({ num40hq: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="bg-white border border-slate-200 rounded px-1.5 py-1 text-[11px] text-center font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </label>
+          </div>
+          {customDraft.numLcl > 0 && (customDraft.num20gp > 0 || customDraft.num40gp > 0 || customDraft.num40hq > 0) && (
+            <div className="mt-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[10px] text-slate-500">
+              Mixed load: your FCL containers fill first, and any leftover volume beyond their capacity ships LCL.
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1804,6 +1831,7 @@ export default function ScenarioInspector({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {shipmentColumns.map((ship, idx) => {
               const isLcl = ship.container.isLcl;
+              const isMixedLoad = !isLcl && (ship.container.numLcl || 0) > 0;
 
               return (
                 <div 
@@ -1842,9 +1870,13 @@ export default function ScenarioInspector({
                         </h4>
                       </div>
                       <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                        isLcl ? "bg-amber-50 text-amber-700 border border-amber-100" : "bg-blue-50 text-blue-700 border border-blue-100"
+                        isLcl
+                          ? "bg-amber-50 text-amber-700 border border-amber-100"
+                          : isMixedLoad
+                            ? "bg-violet-50 text-violet-700 border border-violet-100"
+                            : "bg-blue-50 text-blue-700 border border-blue-100"
                       }`}>
-                        {isLcl ? "LCL Cargo" : "FCL Cargo"}
+                        {isLcl ? "LCL Cargo" : isMixedLoad ? "Mixed FCL + LCL" : "FCL Cargo"}
                       </span>
                     </div>
 

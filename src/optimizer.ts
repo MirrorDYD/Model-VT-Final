@@ -741,7 +741,42 @@ export function calculateRouteCosts(
     return { freight: 0, local: 0, brokerage: 0, exwork: 0, vatApplied: false };
   }
 
-  const { isLcl, num20gp, num40gp, num40hq } = container;
+  const { isLcl, num20gp, num40gp, num40hq, numLcl } = container;
+
+  // Blended LCL + FCL: bill the FCL containers against the volume they can
+  // hold, and any actual volume beyond that as LCL by weight/volume — then
+  // sum the two legs. This only triggers for a manual override that has
+  // both FCL containers and an LCL share set; auto-computed packing never
+  // sets numLcl, so this is a no-op for every other caller.
+  const hasFclPortion = num20gp > 0 || num40gp > 0 || num40hq > 0;
+  const hasLclPortion = (numLcl || 0) > 0;
+  if (!isLcl && hasFclPortion && hasLclPortion) {
+    const fclCapacity = num20gp * 25 + num40gp * 60 + num40hq * 65;
+    const lclCbm = Math.max(0, totalCbm - fclCapacity);
+    const fclCbm = totalCbm - lclCbm;
+
+    const fclResult = calculateRouteCosts(
+      shipFrom, fclCbm, numShipments,
+      { ...container, isLcl: false, numLcl: 0 },
+      routeQuote, exchangeRates
+    );
+    const lclResult = lclCbm > 0
+      ? calculateRouteCosts(
+          shipFrom, lclCbm, numShipments,
+          { ...container, isLcl: true, num20gp: 0, num40gp: 0, num40hq: 0, numLcl: 0 },
+          routeQuote, exchangeRates
+        )
+      : { freight: 0, local: 0, brokerage: 0, exwork: 0, vatApplied: fclResult.vatApplied };
+
+    return {
+      freight: Math.round((fclResult.freight + lclResult.freight) * 100) / 100,
+      local: Math.round((fclResult.local + lclResult.local) * 100) / 100,
+      brokerage: Math.round((fclResult.brokerage + lclResult.brokerage) * 100) / 100,
+      exwork: Math.round((fclResult.exwork + lclResult.exwork) * 100) / 100,
+      vatApplied: fclResult.vatApplied || lclResult.vatApplied
+    };
+  }
+
   const num40 = num40gp + num40hq;
 
   let freight = 0;
@@ -1091,31 +1126,86 @@ function buildManualContainerConfig(
   num20gp: number,
   num40gp: number,
   num40hq: number,
+  numLcl: number,
   isLcl: boolean,
   totalCbm: number
 ): ContainerConfig {
-  if (isLcl || (num20gp === 0 && num40gp === 0 && num40hq === 0)) {
-    const isOverTheoretical = totalCbm > 19.0;
+  const hasFcl = num20gp > 0 || num40gp > 0 || num40hq > 0;
+  const hasLcl = numLcl > 0;
+
+  if (!hasFcl) {
+    // Pure LCL (or nothing selected at all). Capacity scales with the
+    // number of LCL shares entered — each share is a nominal 19 CBM — so
+    // bumping the LCL count actually raises the shipment's capacity instead
+    // of staying pinned at a single share's 19 CBM.
+    const shares = hasLcl ? numLcl : 1;
+    const capacity = shares * 19.0;
+    const isOverTheoretical = totalCbm > capacity;
+    const excessCbm = Math.max(0, totalCbm - capacity);
+    const withinTolerance = excessCbm <= 2.1;
     return {
       num20gp: 0,
       num40gp: 0,
       num40hq: 0,
-      name: `LCL (${totalCbm.toFixed(2)}/19.00 CBM) (Manual)`,
+      numLcl: hasLcl ? numLcl : 0,
+      name: `${shares > 1 ? `${shares}x ` : ""}LCL (${totalCbm.toFixed(2)}/${capacity.toFixed(2)} CBM) (Manual)`,
       isLcl: true,
       totalCbm,
       freightCost: 0,
-      status: isOverTheoretical ? "Review Needed" : "Acceptable",
-      statusDetails: isOverTheoretical
-        ? `Squeezed (High Utilization / Elastic Capacity): Over LCL theoretical capacity (19 CBM) by ${Math.max(0, totalCbm - 19.0).toFixed(2)} CBM, but within +2.1 CBM tolerance.`
-        : `Fully fits in LCL space (max 19 CBM).`,
-      capacity: 19.0,
-      excessCbm: Math.max(0, totalCbm - 19.0)
+      status: !isOverTheoretical ? "Acceptable" : withinTolerance ? "Review Needed" : "NOT Acceptable",
+      statusDetails: !isOverTheoretical
+        ? `Fully fits in LCL space (max ${capacity.toFixed(2)} CBM across ${shares} LCL share${shares > 1 ? "s" : ""}).`
+        : withinTolerance
+          ? `Squeezed (High Utilization / Elastic Capacity): Over LCL theoretical capacity (${capacity.toFixed(2)} CBM across ${shares} share${shares > 1 ? "s" : ""}) by ${excessCbm.toFixed(2)} CBM, but within +2.1 CBM tolerance.`
+          : `Too much over the limit! Over LCL capacity (${capacity.toFixed(2)} CBM across ${shares} share${shares > 1 ? "s" : ""}) by ${excessCbm.toFixed(2)} CBM, exceeding the +2.1 CBM tolerance. Add more LCL shares.`,
+      capacity,
+      excessCbm
     };
   }
 
-  const capacity = num20gp * 25 + num40gp * 60 + num40hq * 65;
+  const fclCapacity = num20gp * 25 + num40gp * 60 + num40hq * 65;
   // Elasticity applies only to 40ft and 40HQ units — 20ft has zero tolerance
   const maxAllowedExcess = (num40gp + num40hq) * 2.1;
+
+  if (hasLcl) {
+    // Blended LCL + FCL: the FCL containers take their combined capacity,
+    // and any actual volume beyond that ships LCL by weight/volume — so the
+    // nominal capacity gets a further +19 CBM (per LCL share) of headroom
+    // before the shipment is flagged as over capacity.
+    const capacity = fclCapacity + numLcl * 19.0;
+    const excessCbm = totalCbm - capacity > 0.005 ? totalCbm - capacity : 0;
+    const lclCbm = Math.max(0, totalCbm - fclCapacity);
+
+    let status: "Acceptable" | "Review Needed" | "NOT Acceptable" = "Acceptable";
+    let statusDetails = "";
+    if (excessCbm === 0 || totalCbm <= capacity) {
+      status = "Acceptable";
+      statusDetails = `Fully acceptable. Fits within your selected FCL containers (${fclCapacity} CBM) plus ${numLcl}x LCL share${numLcl > 1 ? "s" : ""} (+${(numLcl * 19).toFixed(1)} CBM) — ${lclCbm.toFixed(2)} CBM will ship LCL.`;
+    } else if (maxAllowedExcess > 0 && excessCbm <= maxAllowedExcess) {
+      status = "Review Needed";
+      statusDetails = `Squeezed (High Utilization / Elastic Capacity): Over your selected FCL + LCL capacity by ${excessCbm.toFixed(2)} CBM. Within the +${maxAllowedExcess.toFixed(1)} CBM elasticity limit (40ft/40HQ only). Acceptable pending physical loading review.`;
+    } else {
+      status = "NOT Acceptable";
+      statusDetails = `Manually selected containers + LCL are too small: over capacity by ${excessCbm.toFixed(2)} CBM, exceeding the allowed tolerance. Add more LCL share(s) or a larger container mix.`;
+    }
+
+    return {
+      num20gp,
+      num40gp,
+      num40hq,
+      numLcl,
+      name: `${numLcl}x LCL + ${formatFclName(num40hq, num40gp, num20gp, totalCbm, fclCapacity)}`.replace(" FCL (", " (") + " (Manual)",
+      isLcl: false,
+      totalCbm,
+      freightCost: 0,
+      status,
+      statusDetails,
+      capacity,
+      excessCbm
+    };
+  }
+
+  const capacity = fclCapacity;
   const excessCbm = totalCbm - capacity > 0.005 ? totalCbm - capacity : 0;
 
   let status: "Acceptable" | "Review Needed" | "NOT Acceptable" = "Acceptable";
@@ -1135,6 +1225,7 @@ function buildManualContainerConfig(
     num20gp,
     num40gp,
     num40hq,
+    numLcl: 0,
     name: formatFclName(num40hq, num40gp, num20gp, totalCbm, capacity) + " (Manual)",
     isLcl: false,
     totalCbm,
@@ -2639,7 +2730,22 @@ export function processScenario(
   });
 
   // Step 3: Rounding cumulative propagation
-  const uniqueItemColors = Array.from(new Set(processedEntries.map(p => `${p.itemCode}::${p.colorCode}`)));
+  //
+  // This MUST group by the same key the UI displays and evaluates MCQ
+  // against — item description + color code — not by raw item code.
+  // Source PR files routinely split one logical item/color across several
+  // item codes (e.g. the main fabric code plus a "Z"-prefixed
+  // placeholder/swatch/trim code carrying just a fraction of a unit), all
+  // sharing one item description. Grouping the cascade by item code
+  // instead ran the "shipment 1 always rounds up" rule independently once
+  // per item code — e.g. a 485.03+74.68+82.32 fabric-code subtotal AND a
+  // separate 1.0+0.5 Z-code subtotal for the same displayed row each got
+  // their own ceiling (643->643.53->644 style rounding done twice),
+  // summing to one unit more than ceiling the row's true combined total
+  // once. Grouping by item description (matching the UI's own grouping)
+  // guarantees the display row and the rounding math agree.
+  const groupKeyOf = (p: PrEntry): string => `${p.itemDescription || p.itemCode}::${p.colorCode}`;
+  const uniqueItemColors = Array.from(new Set(processedEntries.map(groupKeyOf)));
   let totalRoundingExcessCost = 0;
 
   // Summing many fractional PR quantities in floating point can drift by a
@@ -2666,8 +2772,7 @@ export function processScenario(
   const isNearInteger = (n: number): boolean => Math.abs(n - Math.round(n)) < NEAR_INTEGER_TOLERANCE;
 
   uniqueItemColors.forEach(key => {
-    const [itemCode, colorCode] = key.split("::");
-    const itemPrs = processedEntries.filter(p => p.itemCode === itemCode && p.colorCode === colorCode);
+    const itemPrs = processedEntries.filter(p => groupKeyOf(p) === key);
     if (itemPrs.length === 0) return;
 
     const weekQuantities = S.map(w => {
@@ -2745,11 +2850,21 @@ export function processScenario(
           // the final answer — nothing to round, no excess to bank or
           // draw from.
           rounded_j = cleanQtyFloat(wq.prs.reduce((sum, p) => sum + p.qty, 0));
+        } else if (j === 0) {
+          // Shipment 1 always rounds up, establishing the initial bank —
+          // this is a hard business rule with NO exception, so it must be
+          // checked before the near-integer shortcut below. Otherwise an
+          // item whose first shipment happens to land within
+          // NEAR_INTEGER_TOLERANCE of a whole number (e.g. a real summed
+          // quantity like 2132.006, not floating-point noise — noise is
+          // already washed out by cleanQtyFloat/cleanQtyFloat's 1e-6
+          // precision before this point) would get silently floored to
+          // Math.round() instead of ceiled, undercounting the first
+          // shipment and breaking the surplus bank every later shipment
+          // in the chain draws from.
+          rounded_j = Math.ceil(qty_j);
         } else if (isNearInteger(qty_j)) {
           rounded_j = Math.round(qty_j);
-        } else if (j === 0) {
-          // Shipment 1 always rounds up, establishing the initial bank.
-          rounded_j = Math.ceil(qty_j);
         } else {
           const fractional_j = cleanQtyFloat(qty_j - Math.floor(qty_j));
           // An exact tie (surplus === fractional remainder) favors
@@ -2777,11 +2892,22 @@ export function processScenario(
       const roundedTotal = roundedQtys[index];
       const diff = roundedTotal - originalTotal;
 
-      if (Math.abs(diff) > 0.0001) {
+      if (Math.abs(diff) > 0.0001 || wq.prs.some(pr => !Number.isInteger(pr.qty))) {
         // Round every PR in this week to a whole number first, so no PR is
         // ever left fractional (this previously caused messy per-cell
         // totals like 841.87 in the MCQ matrix, since only the latest PR
         // used to get rounded while the rest stayed fractional).
+        //
+        // This branch must also run whenever any individual PR is still
+        // fractional even if the GROUP total already came out to a whole
+        // number (diff ~ 0) — e.g. three PRs of 0.5 + 1.0 + 0.5 sum to an
+        // exact 2.0 at the group level, but rounding each PR independently
+        // (0.5->1, 1.0->1, 0.5->1) sums to 3, silently inventing a phantom
+        // extra unit. Skipping residual reconciliation whenever diff was
+        // merely small (the old behavior) let that phantom unit slip
+        // through uncorrected. Reconciling against the true roundedTotal
+        // here, in every case, guarantees the sum of individually-rounded
+        // PRs always matches the cascade's intended total.
         wq.prs.forEach(pr => {
           pr.qty = Math.round(pr.qty);
         });
@@ -2801,10 +2927,6 @@ export function processScenario(
           latestPr.excessQty = (latestPr.excessQty || 0) + residual;
           totalRoundingExcessCost += residual * getPrPriceTHB(latestPr);
         }
-      } else {
-        wq.prs.forEach(pr => {
-          pr.qty = Math.round(pr.qty);
-        });
       }
     });
   });
@@ -2986,6 +3108,7 @@ export function processScenario(
         weekContainerOverride.num20gp,
         weekContainerOverride.num40gp,
         weekContainerOverride.num40hq,
+        weekContainerOverride.numLcl || 0,
         weekContainerOverride.isLcl,
         totalCbm
       );
