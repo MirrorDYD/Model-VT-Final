@@ -64,7 +64,6 @@ export default function ScenarioOverview({
     "Carrying Cost": sc.totalCarryingCost / rate,
     "Opportunity Cost": sc.totalOpportunityCost / rate,
     "MOQ Surcharge": sc.totalMoqExcessCost / rate,
-    "Rounding Excess": sc.totalRoundingExcessCost / rate,
     total: sc.totalLandedCost / rate
   }));
 
@@ -106,7 +105,6 @@ export default function ScenarioOverview({
     "Carrying Cost": sc.totalCarryingCost / rate,
     "Opportunity Cost": sc.totalOpportunityCost / rate,
     "MOQ Surcharge": sc.totalMoqExcessCost / rate,
-    "Rounding Excess": sc.totalRoundingExcessCost / rate,
   }));
 
   const CustomTooltipNoMaterial = ({ active, payload, label }: any) => {
@@ -319,12 +317,11 @@ export default function ScenarioOverview({
                 <YAxis stroke="#64748b" fontSize={11} tickLine={false} tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend iconSize={10} iconType="circle" wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
-                <Bar dataKey="Material Cost" name={t("Material", lang)} stackId="a" fill="#1e40af" />
-                <Bar dataKey="Shipping Cost" name={t("Shipping", lang)} stackId="a" fill="#2563eb" />
-                <Bar dataKey="Carrying Cost" name={t("Carrying", lang)} stackId="a" fill="#8b5cf6" />
-                <Bar dataKey="Opportunity Cost" name={t("Opportunity", lang)} stackId="a" fill="#06b6d4" />
-                <Bar dataKey="MOQ Surcharge" name={t("Surcharges", lang)} stackId="a" fill="#f43f5e" />
-                <Bar dataKey="Rounding Excess" name="Rounding Surcharge" stackId="a" fill="#f59e0b" />
+                <Bar dataKey="Material Cost" name={t("Material", lang)} stackId="a" fill="#1d4ed8" />
+                <Bar dataKey="Shipping Cost" name={t("Shipping", lang)} stackId="a" fill="#16a34a" />
+                <Bar dataKey="Carrying Cost" name={t("Carrying", lang)} stackId="a" fill="#9333ea" />
+                <Bar dataKey="Opportunity Cost" name={t("Opportunity", lang)} stackId="a" fill="#db2777" />
+                <Bar dataKey="MOQ Surcharge" name={t("Surcharges", lang)} stackId="a" fill="#ea580c" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -348,11 +345,10 @@ export default function ScenarioOverview({
                 <YAxis stroke="#64748b" fontSize={11} tickLine={false} tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`} />
                 <Tooltip content={<CustomTooltipNoMaterial />} />
                 <Legend iconSize={10} iconType="circle" wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
-                <Bar dataKey="Shipping Cost" name={t("Shipping", lang)} stackId="a" fill="#2563eb" />
-                <Bar dataKey="Carrying Cost" name={t("Carrying", lang)} stackId="a" fill="#8b5cf6" />
-                <Bar dataKey="Opportunity Cost" name={t("Opportunity", lang)} stackId="a" fill="#06b6d4" />
-                <Bar dataKey="MOQ Surcharge" name={t("Surcharges", lang)} stackId="a" fill="#f43f5e" />
-                <Bar dataKey="Rounding Excess" name="Rounding Surcharge" stackId="a" fill="#f59e0b" />
+                <Bar dataKey="Shipping Cost" name={t("Shipping", lang)} stackId="a" fill="#16a34a" />
+                <Bar dataKey="Carrying Cost" name={t("Carrying", lang)} stackId="a" fill="#9333ea" />
+                <Bar dataKey="Opportunity Cost" name={t("Opportunity", lang)} stackId="a" fill="#db2777" />
+                <Bar dataKey="MOQ Surcharge" name={t("Surcharges", lang)} stackId="a" fill="#ea580c" />
               </BarChart>
             </ResponsiveContainer>
           </div>

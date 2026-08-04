@@ -1934,37 +1934,45 @@ export default function ScenarioInspector({
                       )}
                     </div>
 
-                    {/* Cost Breakdown */}
+                    {/* Cost Breakdown — same fields, order, and labels as the
+                        VT Garment Multi-Scenario Sourcing Ledger table, so a
+                        shipment card and the ledger row always read the same way. */}
                     <div className="space-y-2 border-t border-slate-200 pt-4 text-xs mb-4">
                       <div className="flex justify-between text-slate-500">
-                        <span>{t("Ocean Freight Tariff:", lang)}</span>
+                        <span>{t("Material", lang)}:</span>
+                        <span className="font-mono text-slate-700">{formatMoney(ship.totalMaterialCost)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500">
+                        <span>{t("Freight", lang)}:</span>
                         <span className="font-mono text-slate-700">
                           {ship.freightCost > 0 ? formatMoney(ship.freightCost) : <span className="text-slate-300">—</span>}
                         </span>
                       </div>
                       <div className="flex justify-between text-slate-500">
-                        <span>{t("Local Port Dues & Delivery:", lang)}</span>
+                        <span>{t("Local", lang)}:</span>
                         <span className="font-mono text-slate-700">
                           {ship.localCost > 0 ? formatMoney(ship.localCost) : <span className="text-slate-300">—</span>}
                         </span>
                       </div>
                       <div className="flex justify-between text-slate-500">
-                        <span className="flex items-center gap-1">
-                          {t("Exwork (Origin Local):", lang)}
-                        </span>
+                        <span>{t("Exwork", lang)}:</span>
                         <span className="font-mono text-slate-700">
                           {ship.exworkCost > 0 ? formatMoney(ship.exworkCost) : <span className="text-slate-300">—</span>}
                         </span>
                       </div>
                       <div className="flex justify-between text-slate-500">
-                        <span>{t("Customs Brokerage Dues:", lang)}</span>
+                        <span>{t("Brokerage", lang)}:</span>
                         <span className="font-mono text-slate-700">
                           {ship.brokerageCost > 0 ? formatMoney(ship.brokerageCost) : <span className="text-slate-300">—</span>}
                         </span>
                       </div>
+                      <div className="flex justify-between font-bold text-slate-800">
+                        <span>{t("Shipping", lang)}:</span>
+                        <span className="font-mono">{formatMoney(ship.freightCost + ship.localCost + ship.exworkCost + ship.brokerageCost)}</span>
+                      </div>
                       <div className="flex justify-between text-slate-500 group relative">
                         <span className="flex items-center gap-1 cursor-help border-b border-dotted border-slate-400">
-                          {t("Carrying Cost Penalty:", lang)}
+                          {t("Carrying", lang)}:
                           <span className="invisible group-hover:visible absolute left-0 bottom-6 z-10 w-64 p-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg leading-normal">
                             {t("Formula: (Shipment Value ÷ 2) × Carrying Rate × (Days Early / 365)", lang)}<br/>
                             <span className="text-slate-300 font-mono">{t("Shipment Value = Material Cost + MOQ Excess Cost", lang)}</span>
@@ -1974,7 +1982,7 @@ export default function ScenarioInspector({
                       </div>
                       <div className="flex justify-between text-slate-500 group relative">
                         <span className="flex items-center gap-1 cursor-help border-b border-dotted border-slate-400">
-                          {t("Capital Opportunity Cost:", lang)}
+                          {t("Opportunity", lang)}:
                           <span className="invisible group-hover:visible absolute left-0 bottom-6 z-10 w-64 p-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg leading-normal">
                             {t("Formula: Shipment Value × [ (1 + Opportunity Rate)^(Days Early / 365) − 1 ]", lang)}<br/>
                             <span className="text-slate-300 font-mono">{t("Opportunity Rate = WACC %", lang)}</span>
@@ -1982,8 +1990,14 @@ export default function ScenarioInspector({
                         </span>
                         <span className="font-mono text-slate-700">{formatMoney(ship.opportunityCost)}</span>
                       </div>
+                      <div className="flex justify-between text-slate-500">
+                        <span>{t("Surcharges", lang)}:</span>
+                        <span className="font-mono text-slate-700">
+                          {(ship.moqSurchargeCost || 0) > 0 ? formatMoney(ship.moqSurchargeCost || 0) : <span className="text-slate-300">—</span>}
+                        </span>
+                      </div>
                       <div className="flex justify-between font-bold border-t border-slate-200 pt-2 text-blue-600">
-                        <span>{t("Subtotal Cost:", lang)}</span>
+                        <span>{t("True Landed Cost", lang)}:</span>
                         <span className="font-mono">{formatMoney(ship.totalLandedCost)}</span>
                       </div>
                     </div>
